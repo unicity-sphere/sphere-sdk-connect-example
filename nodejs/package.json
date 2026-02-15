@@ -1,0 +1,20 @@
+{
+  "name": "sphere-connect-nodejs-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "server": "npx tsx src/mock-wallet-server.ts",
+    "client": "npx tsx src/index.ts"
+  },
+  "dependencies": {
+    "@unicitylabs/sphere-sdk": "file:../../sphere-sdk",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.0",
+    "typescript": "~5.6.0"
+  }
+}
