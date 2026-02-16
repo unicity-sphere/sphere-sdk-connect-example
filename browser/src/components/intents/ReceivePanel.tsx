@@ -33,6 +33,7 @@ export function ReceivePanel({ intent }: Props) {
       </div>
       <p className="text-xs text-gray-400 mb-1">Explicit one-shot poll for pending incoming transfers via Nostr</p>
       <p className="text-[11px] text-gray-400 mb-1">In a live wallet transfers arrive automatically — this is for CLI/batch scenarios without a persistent connection</p>
+      <p className="text-[11px] text-red-500 mb-1">Not yet implemented in wallet — will show "Unknown Intent"</p>
       <p className="text-[11px] text-yellow-600 mb-4">Requires wallet approval</p>
 
       <button onClick={execute} disabled={loading}
