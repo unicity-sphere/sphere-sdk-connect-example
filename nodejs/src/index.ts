@@ -73,6 +73,11 @@ async function main() {
             console.log('Assets:', JSON.stringify(assets, null, 2));
             break;
           }
+          case 'fiat': {
+            const fiat = await client.query(RPC_METHODS.GET_FIAT_BALANCE);
+            console.log('Fiat Balance:', JSON.stringify(fiat, null, 2));
+            break;
+          }
           case 'tokens': {
             const tokens = await client.query(RPC_METHODS.GET_TOKENS);
             console.log('Tokens:', JSON.stringify(tokens, null, 2));
@@ -91,6 +96,13 @@ async function main() {
           case 'l1': {
             const l1 = await client.query(RPC_METHODS.L1_GET_BALANCE);
             console.log('L1 Balance:', JSON.stringify(l1, null, 2));
+            break;
+          }
+          case 'l1history': {
+            const limit = parts[1] ? parseInt(parts[1]) : undefined;
+            const params = limit ? { limit } : undefined;
+            const l1h = await client.query(RPC_METHODS.L1_GET_HISTORY, params);
+            console.log('L1 History:', JSON.stringify(l1h, null, 2));
             break;
           }
           case 'resolve': {
@@ -114,11 +126,25 @@ async function main() {
               break;
             }
             const sendResult = await client.intent(INTENT_ACTIONS.SEND, {
-              to: to.startsWith('@') ? to : '@' + to,
+              recipient: to.startsWith('@') ? to : '@' + to,
               amount,
               coinId,
             });
             console.log('Send result:', JSON.stringify(sendResult, null, 2));
+            break;
+          }
+          case 'l1send': {
+            const l1to = parts[1];
+            const l1amount = parts[2];
+            if (!l1to || !l1amount) {
+              console.log('Usage: l1send alpha1... amount');
+              break;
+            }
+            const l1Result = await client.intent(INTENT_ACTIONS.L1_SEND, {
+              to: l1to,
+              amount: l1amount,
+            });
+            console.log('L1 Send result:', JSON.stringify(l1Result, null, 2));
             break;
           }
           case 'dm': {
@@ -129,10 +155,45 @@ async function main() {
               break;
             }
             const dmResult = await client.intent(INTENT_ACTIONS.DM, {
-              to: dmTo.startsWith('@') ? dmTo : '@' + dmTo,
+              recipient: dmTo.startsWith('@') ? dmTo : '@' + dmTo,
               message,
             });
             console.log('DM result:', JSON.stringify(dmResult, null, 2));
+            break;
+          }
+          case 'pay': {
+            const payTo = parts[1];
+            const payAmount = parts[2];
+            const payCoin = parts[3] ?? 'UCT';
+            const payMsg = parts.slice(4).join(' ') || undefined;
+            if (!payTo || !payAmount) {
+              console.log('Usage: pay @nametag amount [coinId] [message]');
+              break;
+            }
+            const payResult = await client.intent(INTENT_ACTIONS.PAYMENT_REQUEST, {
+              recipient: payTo.startsWith('@') ? payTo : '@' + payTo,
+              amount: payAmount,
+              coinId: payCoin,
+              ...(payMsg ? { message: payMsg } : {}),
+            });
+            console.log('Payment request result:', JSON.stringify(payResult, null, 2));
+            break;
+          }
+          case 'receive': {
+            const recvResult = await client.intent(INTENT_ACTIONS.RECEIVE, {});
+            console.log('Receive result:', JSON.stringify(recvResult, null, 2));
+            break;
+          }
+          case 'sign': {
+            const signMsg = parts.slice(1).join(' ');
+            if (!signMsg) {
+              console.log('Usage: sign message text');
+              break;
+            }
+            const signResult = await client.intent(INTENT_ACTIONS.SIGN_MESSAGE, {
+              message: signMsg,
+            });
+            console.log('Sign result:', JSON.stringify(signResult, null, 2));
             break;
           }
           case 'disconnect':
@@ -147,17 +208,28 @@ async function main() {
           case 'help': {
             console.log(`
 Commands:
-  balance          - Get L3 balance
-  assets           - Get asset list
-  tokens           - Get token list
-  history          - Get transaction history
-  identity         - Get wallet identity
-  l1               - Get L1 balance
-  resolve @tag     - Resolve a nametag
-  send @to amt [coin] - Send tokens (intent)
-  dm @to message   - Send DM (intent)
-  disconnect       - Disconnect and exit
-  help             - Show this help
+  QUERIES
+    identity           - Get wallet identity
+    balance            - Get L3 balance
+    assets             - Get asset list (with fiat values)
+    fiat               - Get total fiat balance
+    tokens             - Get individual token list
+    history            - Get transaction history
+    l1                 - Get L1 ALPHA balance
+    l1history [limit]  - Get L1 transaction history
+    resolve @tag       - Resolve nametag/address to peer info
+
+  INTENTS (require wallet approval)
+    send @to amt [coin]          - Send L3 tokens
+    l1send alpha1... amount      - Send L1 ALPHA
+    dm @to message               - Send direct message
+    pay @to amt [coin] [message] - Send payment request
+    receive                      - Receive incoming tokens
+    sign message text            - Sign a message
+
+  OTHER
+    disconnect                   - Disconnect and exit
+    help                         - Show this help
 `);
             break;
           }
