@@ -12,27 +12,87 @@ interface Props {
 }
 
 const ALL_EVENTS = [
+  // Transfers
   'transfer:incoming',
   'transfer:confirmed',
   'transfer:failed',
+  // Payment requests
+  'payment_request:incoming',
+  'payment_request:accepted',
+  'payment_request:rejected',
+  'payment_request:paid',
+  'payment_request:response',
+  // Messages
+  'message:dm',
+  'message:read',
+  'message:typing',
+  'composing:started',
+  'message:broadcast',
+  // Sync
+  'sync:started',
+  'sync:completed',
+  'sync:provider',
+  'sync:error',
+  'sync:remote-update',
+  // Connection
+  'connection:changed',
+  // Identity & addresses
   'identity:changed',
   'nametag:registered',
   'nametag:recovered',
   'address:activated',
-  'sync:provider',
-  'payment_request:incoming',
+  'address:hidden',
+  'address:unhidden',
+  // Group chat
+  'groupchat:message',
+  'groupchat:joined',
+  'groupchat:left',
+  'groupchat:kicked',
+  'groupchat:group_deleted',
+  'groupchat:updated',
+  'groupchat:connection',
 ];
 
 const EVENT_COLORS: Record<string, string> = {
+  // Transfers
   'transfer:incoming': 'bg-green-100 text-green-700',
   'transfer:confirmed': 'bg-green-100 text-green-700',
   'transfer:failed': 'bg-red-100 text-red-700',
+  // Payment requests
+  'payment_request:incoming': 'bg-orange-100 text-orange-700',
+  'payment_request:accepted': 'bg-green-100 text-green-700',
+  'payment_request:rejected': 'bg-red-100 text-red-700',
+  'payment_request:paid': 'bg-green-100 text-green-700',
+  'payment_request:response': 'bg-orange-100 text-orange-700',
+  // Messages
+  'message:dm': 'bg-indigo-100 text-indigo-700',
+  'message:read': 'bg-indigo-100 text-indigo-700',
+  'message:typing': 'bg-indigo-100 text-indigo-700',
+  'composing:started': 'bg-indigo-100 text-indigo-700',
+  'message:broadcast': 'bg-indigo-100 text-indigo-700',
+  // Sync
+  'sync:started': 'bg-gray-100 text-gray-600',
+  'sync:completed': 'bg-gray-100 text-gray-600',
+  'sync:provider': 'bg-gray-100 text-gray-600',
+  'sync:error': 'bg-red-100 text-red-700',
+  'sync:remote-update': 'bg-gray-100 text-gray-600',
+  // Connection
+  'connection:changed': 'bg-yellow-100 text-yellow-700',
+  // Identity & addresses
   'identity:changed': 'bg-blue-100 text-blue-700',
   'nametag:registered': 'bg-purple-100 text-purple-700',
   'nametag:recovered': 'bg-purple-100 text-purple-700',
   'address:activated': 'bg-blue-100 text-blue-700',
-  'sync:provider': 'bg-gray-100 text-gray-600',
-  'payment_request:incoming': 'bg-orange-100 text-orange-700',
+  'address:hidden': 'bg-blue-100 text-blue-700',
+  'address:unhidden': 'bg-blue-100 text-blue-700',
+  // Group chat
+  'groupchat:message': 'bg-teal-100 text-teal-700',
+  'groupchat:joined': 'bg-teal-100 text-teal-700',
+  'groupchat:left': 'bg-teal-100 text-teal-700',
+  'groupchat:kicked': 'bg-red-100 text-red-700',
+  'groupchat:group_deleted': 'bg-red-100 text-red-700',
+  'groupchat:updated': 'bg-teal-100 text-teal-700',
+  'groupchat:connection': 'bg-teal-100 text-teal-700',
 };
 
 let nextId = 0;
