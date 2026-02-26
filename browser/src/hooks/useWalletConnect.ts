@@ -20,7 +20,7 @@ export interface UseWalletConnect extends WalletConnectState {
   on: (event: string, handler: (data: unknown) => void) => () => void;
 }
 
-const WALLET_URL = 'http://localhost:5173';
+const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.network';
 
 function isInIframe(): boolean {
   try {
@@ -71,7 +71,7 @@ export function useWalletConnect(): UseWalletConnect {
     // Reuse existing popup window if still open, otherwise open new one
     if (!popupRef.current || popupRef.current.closed) {
       const popup = window.open(
-        WALLET_URL + '/#/connect?origin=' + encodeURIComponent(location.origin),
+        WALLET_URL + '/connect?origin=' + encodeURIComponent(location.origin),
         'sphere-wallet',
         'width=420,height=650',
       );
