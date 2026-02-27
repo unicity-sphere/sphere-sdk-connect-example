@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import { ConnectClient, HOST_READY_TYPE, HOST_READY_TIMEOUT } from '@unicitylabs/sphere-sdk/connect';
-import { PostMessageTransport } from '@unicitylabs/sphere-sdk/connect/browser';
-import type { PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
+import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sdk/connect/browser';
+import type { ConnectTransport, PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
 import type { PermissionScope } from '@unicitylabs/sphere-sdk/connect';
+import { isInIframe, hasExtension } from '../lib/detection';
 
 export interface WalletConnectState {
   isConnected: boolean;
@@ -21,14 +22,6 @@ export interface UseWalletConnect extends WalletConnectState {
 }
 
 const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.network';
-
-function isInIframe(): boolean {
-  try {
-    return window.parent !== window && window.self !== window.top;
-  } catch {
-    return true; // cross-origin iframe
-  }
-}
 
 /** Wait for the wallet popup to signal it's ready */
 function waitForHostReady(): Promise<void> {
@@ -59,7 +52,7 @@ export function useWalletConnect(): UseWalletConnect {
   });
 
   const clientRef = useRef<ConnectClient | null>(null);
-  const transportRef = useRef<PostMessageTransport | null>(null);
+  const transportRef = useRef<ConnectTransport | null>(null);
   const popupRef = useRef<Window | null>(null);
   const popupMode = useRef(false);
 
@@ -159,6 +152,7 @@ export function useWalletConnect(): UseWalletConnect {
 
     try {
       if (isInIframe()) {
+        // P1: embedded inside Sphere iframe — talk to parent window directly
         popupMode.current = false;
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
@@ -181,7 +175,32 @@ export function useWalletConnect(): UseWalletConnect {
           permissions: result.permissions,
           error: null,
         });
+      } else if (hasExtension()) {
+        // P2: Sphere browser extension is installed — use it directly
+        popupMode.current = false;
+        const transport = ExtensionTransport.forClient();
+        transportRef.current = transport;
+
+        const client = new ConnectClient({
+          transport,
+          dapp: {
+            name: 'Connect Demo',
+            description: 'Sphere Connect browser example',
+            url: location.origin,
+          },
+        });
+        clientRef.current = client;
+
+        const result = await client.connect();
+        setState({
+          isConnected: true,
+          isConnecting: false,
+          identity: result.identity,
+          permissions: result.permissions,
+          error: null,
+        });
       } else {
+        // P3: no iframe, no extension — open Sphere popup window
         popupMode.current = true;
         await openPopupAndConnect();
       }
