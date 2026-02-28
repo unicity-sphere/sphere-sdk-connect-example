@@ -20,7 +20,7 @@ export function isInIframe(): boolean {
 /** Returns true when the Sphere browser extension is installed and active. */
 export function hasExtension(): boolean {
   try {
-    const sphere = (window as Record<string, unknown>).sphere;
+    const sphere = (window as unknown as Record<string, unknown>).sphere;
     if (!sphere || typeof sphere !== 'object') return false;
     const isInstalled = (sphere as Record<string, unknown>).isInstalled;
     if (typeof isInstalled !== 'function') return false;
