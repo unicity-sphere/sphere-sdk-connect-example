@@ -33,11 +33,18 @@ export default function App() {
   const [section, setSection] = useState<Section>('assets');
 
   if (!wallet.isConnected) {
+    // Blank screen during silent auto-connect — avoids flash of Connect button
+    if (wallet.isAutoConnecting) {
+      return <div className="min-h-screen bg-gray-50" />;
+    }
     return (
       <div className="min-h-screen bg-gray-50">
         <ConnectButton
           onConnect={wallet.connect}
+          onConnectExtension={wallet.connectViaExtension}
+          onConnectPopup={wallet.connectViaPopup}
           isConnecting={wallet.isConnecting}
+          extensionInstalled={wallet.extensionInstalled}
           error={wallet.error}
         />
       </div>
