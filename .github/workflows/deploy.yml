@@ -30,9 +30,6 @@ jobs:
           cache: npm
           cache-dependency-path: browser/package-lock.json
 
-      - name: Use published sphere-sdk
-        run: npm pkg set "dependencies.@unicitylabs/sphere-sdk=^0.4.2"
-
       - run: npm install
 
       - name: Build
