@@ -15,12 +15,16 @@ export interface WalletConnectState {
 
 export interface UseWalletConnect extends WalletConnectState {
   connect: () => Promise<void>;
+  connectViaExtension: () => Promise<void>;
+  connectViaPopup: () => Promise<void>;
   disconnect: () => Promise<void>;
   query: <T = unknown>(method: RpcMethod | string, params?: Record<string, unknown>) => Promise<T>;
   intent: <T = unknown>(action: IntentAction | string, params: Record<string, unknown>) => Promise<T>;
   on: (event: string, handler: (data: unknown) => void) => () => void;
   /** True only during the initial silent check on page load — hides the Connect button to avoid flash. */
   isAutoConnecting: boolean;
+  /** True if the Sphere browser extension is detected. */
+  extensionInstalled: boolean;
 }
 
 const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.network';
@@ -153,6 +157,31 @@ export function useWalletConnect(): UseWalletConnect {
     throw new Error('Not connected');
   }, []);
 
+  const connectViaExtension = useCallback(async () => {
+    setState((s) => ({ ...s, isConnecting: true, error: null }));
+    try {
+      popupMode.current = false;
+      const transport = ExtensionTransport.forClient();
+      transportRef.current = transport;
+      const client = new ConnectClient({ transport, dapp: dappMeta });
+      clientRef.current = client;
+      const result = await client.connect();
+      setState({ isConnected: true, isConnecting: false, identity: result.identity, permissions: result.permissions, error: null });
+    } catch (err) {
+      setState((s) => ({ ...s, isConnecting: false, error: err instanceof Error ? err.message : 'Connection failed' }));
+    }
+  }, [dappMeta]);
+
+  const connectViaPopup = useCallback(async () => {
+    setState((s) => ({ ...s, isConnecting: true, error: null }));
+    try {
+      popupMode.current = true;
+      await openPopupAndConnect();
+    } catch (err) {
+      setState((s) => ({ ...s, isConnecting: false, error: err instanceof Error ? err.message : 'Connection failed' }));
+    }
+  }, [openPopupAndConnect]);
+
   const connect = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
 
@@ -175,26 +204,9 @@ export function useWalletConnect(): UseWalletConnect {
           error: null,
         });
       } else if (hasExtension()) {
-        // P2: Sphere browser extension is installed — use it directly
-        popupMode.current = false;
-        const transport = ExtensionTransport.forClient();
-        transportRef.current = transport;
-
-        const client = new ConnectClient({ transport, dapp: dappMeta });
-        clientRef.current = client;
-
-        const result = await client.connect();
-        setState({
-          isConnected: true,
-          isConnecting: false,
-          identity: result.identity,
-          permissions: result.permissions,
-          error: null,
-        });
+        await connectViaExtension();
       } else {
-        // P3: no iframe, no extension — open Sphere popup window
-        popupMode.current = true;
-        await openPopupAndConnect();
+        await connectViaPopup();
       }
     } catch (err) {
       setState((s) => ({
@@ -289,10 +301,13 @@ export function useWalletConnect(): UseWalletConnect {
   return {
     ...state,
     connect,
+    connectViaExtension,
+    connectViaPopup,
     disconnect,
     query,
     intent,
     on,
     isAutoConnecting,
+    extensionInstalled: hasExtension(),
   };
 }

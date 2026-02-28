@@ -41,7 +41,10 @@ export default function App() {
       <div className="min-h-screen bg-gray-50">
         <ConnectButton
           onConnect={wallet.connect}
+          onConnectExtension={wallet.connectViaExtension}
+          onConnectPopup={wallet.connectViaPopup}
           isConnecting={wallet.isConnecting}
+          extensionInstalled={wallet.extensionInstalled}
           error={wallet.error}
         />
       </div>
