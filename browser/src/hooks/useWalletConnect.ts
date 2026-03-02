@@ -52,9 +52,9 @@ function waitForHostReady(): Promise<void> {
 }
 
 export function useWalletConnect(): UseWalletConnect {
-  // When extension is installed, start with isAutoConnecting=true to avoid a flash
-  // of the Connect button while the silent check is in progress on mount.
-  const willSilentCheck = !isInIframe() && hasExtension();
+  // Start with isAutoConnecting=true to avoid a flash of the Connect button
+  // while silent check (iframe/extension) or popup session resume is in progress on mount.
+  const willSilentCheck = isInIframe() || hasExtension() || !!sessionStorage.getItem(SESSION_KEY_POPUP);
 
   const [isAutoConnecting, setIsAutoConnecting] = useState(willSilentCheck);
 
@@ -175,12 +175,26 @@ export function useWalletConnect(): UseWalletConnect {
   const connectViaPopup = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
     try {
-      popupMode.current = true;
-      await openPopupAndConnect();
+      if (isInIframe()) {
+        // Inside Sphere iframe — connect to parent via PostMessage (shows modals in Sphere)
+        // No waitForHostReady() needed — ConnectHost is already created by the time the
+        // user can interact with the iframe and click the Connect button.
+        popupMode.current = false;
+        const transport = PostMessageTransport.forClient();
+        transportRef.current = transport;
+        const client = new ConnectClient({ transport, dapp: dappMeta });
+        clientRef.current = client;
+        const result = await client.connect();
+        setState({ isConnected: true, isConnecting: false, identity: result.identity, permissions: result.permissions, error: null });
+      } else {
+        // Outside iframe — open popup window
+        popupMode.current = true;
+        await openPopupAndConnect();
+      }
     } catch (err) {
       setState((s) => ({ ...s, isConnecting: false, error: err instanceof Error ? err.message : 'Connection failed' }));
     }
-  }, [openPopupAndConnect]);
+  }, [openPopupAndConnect, dappMeta]);
 
   const connect = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
@@ -188,7 +202,9 @@ export function useWalletConnect(): UseWalletConnect {
     try {
       if (isInIframe()) {
         // P1: embedded inside Sphere iframe — talk to parent window directly
+        // No waitForHostReady() — ConnectHost is already created by the time user clicks
         popupMode.current = false;
+
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
 
@@ -262,10 +278,83 @@ export function useWalletConnect(): UseWalletConnect {
     return clientRef.current.on(event, handler);
   }, []);
 
-  // On mount: if extension is installed, silently check if this origin is already approved.
-  // If yes — restore the connection without any UI. If no — show the Connect button immediately.
+  // Poll for popup window closure — reset connection state when detected.
   useEffect(() => {
-    if (!isInIframe() && hasExtension()) {
+    if (!state.isConnected || !popupMode.current) return;
+
+    const interval = setInterval(() => {
+      if (popupRef.current && popupRef.current.closed) {
+        clearInterval(interval);
+        transportRef.current?.destroy();
+        clientRef.current = null;
+        transportRef.current = null;
+        popupRef.current = null;
+        popupMode.current = false;
+        sessionStorage.removeItem(SESSION_KEY_POPUP);
+        setState({
+          isConnected: false,
+          isConnecting: false,
+          identity: null,
+          permissions: [],
+          error: null,
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [state.isConnected]);
+
+  // On mount: try to restore connection automatically.
+  // P1 (iframe): silent connect to parent Sphere window via PostMessage.
+  // P2 (extension): silent check if origin is already approved.
+  // P3 (popup): resume session if popup is still open.
+  useEffect(() => {
+    if (isInIframe()) {
+      const silentCheck = async () => {
+        // Wait up to 5s for Sphere to send HOST_READY_TYPE after ConnectHost is initialized.
+        // Sphere sends it twice: immediately after onLoad AND 300ms later, so we are guaranteed
+        // to catch at least the delayed send even if React effects weren't set up yet.
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            window.removeEventListener('message', readyHandler);
+            reject(new Error('Host not ready'));
+          }, 5000);
+          function readyHandler(e: MessageEvent) {
+            if (e.data?.type === HOST_READY_TYPE) {
+              clearTimeout(timer);
+              window.removeEventListener('message', readyHandler);
+              resolve();
+            }
+          }
+          window.addEventListener('message', readyHandler);
+        });
+
+        popupMode.current = false;
+        const transport = PostMessageTransport.forClient();
+        transportRef.current = transport;
+        const client = new ConnectClient({ transport, dapp: dappMeta, silent: true });
+        clientRef.current = client;
+        try {
+          const result = await client.connect();
+          setState({
+            isConnected: true,
+            isConnecting: false,
+            identity: result.identity,
+            permissions: result.permissions,
+            error: null,
+          });
+        } catch {
+          // Parent rejected (origin not approved yet) — clean up, show Connect button
+          transportRef.current?.destroy();
+          clientRef.current = null;
+          transportRef.current = null;
+        }
+      };
+      silentCheck().finally(() => setIsAutoConnecting(false));
+      return;
+    }
+
+    if (hasExtension()) {
       const silentCheck = async () => {
         popupMode.current = false;
         const transport = ExtensionTransport.forClient();
@@ -293,7 +382,18 @@ export function useWalletConnect(): UseWalletConnect {
 
       silentCheck().finally(() => setIsAutoConnecting(false));
     } else {
-      setIsAutoConnecting(false);
+      // Try popup session resume — if popup is still open, reconnect automatically
+      const savedSession = sessionStorage.getItem(SESSION_KEY_POPUP);
+      if (savedSession) {
+        popupMode.current = true;
+        openPopupAndConnect()
+          .catch(() => {
+            sessionStorage.removeItem(SESSION_KEY_POPUP);
+          })
+          .finally(() => setIsAutoConnecting(false));
+      } else {
+        setIsAutoConnecting(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
