@@ -31,7 +31,8 @@ Choose the right transport based on the context your dApp runs in:
 |-----------|-----------|----------|
 | dApp embedded inside Sphere as an iframe | `PostMessageTransport.forClient()` | P1 (highest) |
 | Sphere browser extension installed | `ExtensionTransport.forClient()` | P2 |
-| No extension, standalone page | `PostMessageTransport.forClient({ target: popup })` | P3 |
+| Previously approved origin (bridge iframe) | `PostMessageTransport.forClient({ target: iframe })` | P3 |
+| First-time connection, no extension | Popup → bridge takeover | P4 |
 
 ### Detection utilities
 
@@ -42,8 +43,10 @@ if (isInIframe()) {
   // P1: inside Sphere iframe
 } else if (hasExtension()) {
   // P2: extension installed
+} else if (localStorage.getItem('sphere-connect-bridge-approved')) {
+  // P3: bridge iframe (previously approved — auto-reconnect)
 } else {
-  // P3: open popup
+  // P4: open popup for first-time approval, then switch to bridge
 }
 ```
 
@@ -51,9 +54,14 @@ if (isInIframe()) {
 
 ## Auto-Connect on Page Load
 
-When using the extension, check silently on every page load whether the origin is already approved. If yes — connect immediately. If no — show the Connect button.
+On mount, the hook tries to restore a previous session without user interaction:
+
+1. **Extension** (if installed): silent connect via `ExtensionTransport`
+2. **Bridge iframe** (if previously approved): creates a hidden `<iframe>` pointing to `WALLET_URL/connect-bridge?origin=...`, connects silently via `PostMessageTransport`
+3. **Popup session resume** (fallback): re-opens popup with saved `sessionId`
 
 ```typescript
+// Extension silent check
 const client = new ConnectClient({
   transport: ExtensionTransport.forClient(),
   dapp,
@@ -64,12 +72,12 @@ try {
   const result = await client.connect();
   // Origin is approved — restore session silently
 } catch {
-  // Not approved — show Connect button, wait for user action
+  // Not approved — try bridge iframe next
 }
 ```
 
-**How it works inside the wallet:**
-- `silent=true` → wallet checks its approved origins storage
+**How `silent: true` works inside the wallet:**
+- Wallet checks its approved origins storage
 - If found → approves immediately (no popup)
 - If not found → rejects immediately (no popup, no window)
 
@@ -79,12 +87,12 @@ This prevents stale approval state from causing unexpected popups after the user
 
 ## Full Hook Example (`useWalletConnect.ts`)
 
-The `src/hooks/useWalletConnect.ts` hook implements the full 3-priority flow:
+The `src/hooks/useWalletConnect.ts` hook implements the full priority flow with bridge iframe support:
 
 ```typescript
 const wallet = useWalletConnect();
 
-// On mount: silent-checks if extension already approved this origin
+// On mount: tries extension → bridge iframe → popup session resume
 // wallet.isAutoConnecting === true while the check is in progress
 
 if (wallet.isAutoConnecting) {
@@ -95,9 +103,14 @@ if (!wallet.isConnected) {
   return <ConnectButton onClick={wallet.connect} />;
 }
 
-// Connected
+// Connected — queries work even after popup is closed (bridge mode)
 const balance = await wallet.query('sphere_getBalance');
 await wallet.intent('send', { recipient: '@alice', amount: 100 });
+
+// When bridge needs popup for an intent:
+if (wallet.needsPopup) {
+  return <WalletApprovalPrompt onClick={wallet.openApprovalPopup} />;
+}
 ```
 
 ### State shape
@@ -110,6 +123,8 @@ await wallet.intent('send', { recipient: '@alice', amount: 100 });
   identity: PublicIdentity | null;
   permissions: PermissionScope[];
   error: string | null;
+  needsPopup: boolean;       // true when bridge needs popup for intent approval
+  openApprovalPopup: () => void; // opens popup in bridge intent-only mode
 }
 ```
 
@@ -203,22 +218,64 @@ Available events: `transfer:incoming`, `transfer:confirmed`, `transfer:failed`, 
 await wallet.disconnect();
 ```
 
-When using the extension (P2):
-- `disconnect()` sends `sphere_disconnect` to the wallet
-- The wallet removes this origin from its approved origins storage
-- Next page load: silent-check will fail → Connect button is shown
-- User must click Connect again and approve (or re-approve)
+Disconnect behavior varies by transport mode:
 
-When using the popup (P3):
-- The popup window is closed
-- The session ID in `sessionStorage` is cleared
-- Next load: a new popup is opened and the approval flow starts again
+- **Extension (P2):** Sends `sphere_disconnect`, wallet removes origin from approved storage. Next load: silent-check fails → Connect button shown.
+- **Bridge iframe (P3):** Iframe removed from DOM, `sphere-connect-bridge-approved` cleared from localStorage. Next load: no bridge attempt → Connect button shown.
+- **Popup-only (P4):** Popup closed, `sessionStorage` cleared. Next load: Connect button shown.
 
 ---
 
-## Popup Mode (P3) — Session Resume
+## Bridge Iframe Mode (P3) — Persistent Session
 
-When no extension is installed, the dApp opens a Sphere popup window. The session ID is stored in `sessionStorage` so that page refreshes don't re-trigger the approval modal (the wallet auto-approves known session IDs):
+When no extension is installed, the dApp uses a hidden bridge iframe for persistent sessions. This solves the problem of losing the session when the popup is closed.
+
+### How it works
+
+```
+dApp page
+├── Hidden <iframe src="sphere.../connect-bridge?origin=...">
+│   ├── Sphere instance (same localStorage — same wallet)
+│   ├── ConnectHost (persistent — handles queries + events)
+│   └── PostMessageTransport → window.parent (dApp)
+│
+├── PostMessageTransport.forClient(iframe) — persistent connection
+│
+└── [on intent needing approval] → popup opens on demand
+    ├── Receives intent via BroadcastChannel from bridge
+    ├── Shows approval UI (send/sign/DM modal)
+    ├── Posts result back via BroadcastChannel
+    └── Can be closed — session stays alive in iframe
+```
+
+### First-time connection flow
+
+1. User clicks Connect → popup opens for approval (bridge can't do this — user gesture would expire)
+2. User approves in popup → origin saved in wallet's approved origins
+3. After popup approval, dApp switches session to bridge iframe (bridge takeover)
+4. Popup is closed automatically — session stays in iframe
+5. `sphere-connect-bridge-approved` flag saved in dApp's `localStorage`
+
+### Subsequent page loads
+
+1. On mount, dApp sees `sphere-connect-bridge-approved` in `localStorage`
+2. Creates hidden bridge iframe → iframe auto-approves (origin already known)
+3. Session restored silently — no popup needed
+
+### Intent approval in bridge mode
+
+When the wallet needs user approval for an intent (send, sign, etc.):
+1. Bridge iframe sends `sphere-connect:open-popup` message to dApp
+2. dApp sets `needsPopup = true` → shows "Wallet approval needed" prompt
+3. User clicks → popup opens at `/connect?origin=...&bridge` (intent-only mode)
+4. Popup receives intent via `BroadcastChannel`, shows approval modal
+5. User approves/rejects → result sent back to bridge via `BroadcastChannel`
+
+---
+
+## Popup-Only Mode (P4) — Session Resume
+
+Fallback when bridge iframe is not available. The session ID is stored in `sessionStorage`:
 
 ```typescript
 // After connect:
