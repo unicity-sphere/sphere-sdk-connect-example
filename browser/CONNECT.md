@@ -23,15 +23,22 @@ console.log('Connected as:', identity.nametag ?? identity.chainPubkey);
 
 ---
 
-## Transport Selection
+## Connection Modes
 
-Choose the right transport based on the context your dApp runs in:
+The dApp tries connection methods in priority order:
 
-| Situation | Transport | Priority |
-|-----------|-----------|----------|
-| dApp embedded inside Sphere as an iframe | `PostMessageTransport.forClient()` | P1 (highest) |
-| Sphere browser extension installed | `ExtensionTransport.forClient()` | P2 |
-| No extension, standalone page | `PostMessageTransport.forClient({ target: popup })` | P3 |
+| Priority | Mode | Transport | Persistent? | When |
+|----------|------|-----------|-------------|------|
+| P1 | Embedded iframe | `PostMessageTransport.forClient()` | Yes | dApp runs inside Sphere's own iframe |
+| P2 | Browser extension | `ExtensionTransport.forClient()` | Yes | Sphere extension is installed |
+| P3 | Popup window | `PostMessageTransport.forClient({ target: popup })` | **No** — popup must stay open | Fallback |
+
+**P2 (extension)** is the best mode for production — the connection survives page navigations and requires no open windows after initial approval.
+
+**P3 (popup)** requires the Sphere popup to remain open. Closing it terminates the connection. Session IDs are saved to `sessionStorage` so page reloads can resume without re-approval.
+
+> **Why not a hidden bridge iframe?**
+> Cross-origin iframes cannot access the wallet's IndexedDB in modern Chrome (third-party storage partitioning since v115). `BroadcastChannel` is also partitioned. `requestStorageAccess()` requires a user gesture inside the iframe, which is impossible for a hidden element. For persistent connections without the extension, deploy wallet and dApp on the same origin or keep the popup open.
 
 ### Detection utilities
 
@@ -218,7 +225,9 @@ When using the popup (P3):
 
 ## Popup Mode (P3) — Session Resume
 
-When no extension is installed, the dApp opens a Sphere popup window. The session ID is stored in `sessionStorage` so that page refreshes don't re-trigger the approval modal (the wallet auto-approves known session IDs):
+When no extension is installed, the dApp opens a Sphere popup window. **The popup must stay open** for the connection to work — closing it destroys the transport and disconnects.
+
+The session ID is stored in `sessionStorage` so that page refreshes don't re-trigger the approval modal (the wallet auto-approves known session IDs):
 
 ```typescript
 // After connect:
@@ -265,7 +274,28 @@ try {
 ```bash
 cd sphere-sdk-connect-example/browser
 npm install
-npm run dev       # starts on http://localhost:5174
+npm run dev       # starts on https://localhost:5173 (if certs available)
 ```
 
-Make sure to set `VITE_WALLET_URL` in `.env.local` if testing against a local wallet instance.
+### Environment Variables
+
+Set `VITE_WALLET_URL` in `.env.development` or `.env.local` to point to your wallet instance:
+
+```bash
+VITE_WALLET_URL=https://sphere.unicity.network   # production (default)
+VITE_WALLET_URL=https://localhost:5174            # local development
+```
+
+### HTTPS for development
+
+The Vite config automatically enables HTTPS if SSL certificates exist at `../../sphere/.certs/`. Generate self-signed certs for local HTTPS:
+
+```bash
+mkdir -p sphere/.certs
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+  -keyout sphere/.certs/privkey.pem -out sphere/.certs/fullchain.pem \
+  -days 365 -nodes -subj "/CN=localhost" \
+  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+```
+
+Both the example app and Sphere wallet will use these certs automatically.
