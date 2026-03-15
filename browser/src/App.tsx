@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useWalletConnect } from './hooks/useWalletConnect';
+import { useAutoConnect } from './hooks/useAutoConnect';
 import { ConnectButton } from './components/ConnectButton';
 import { PageShell } from './components/layout/PageShell';
 import type { Section } from './lib/types';
@@ -29,7 +29,7 @@ import { ChatPanel } from './components/chat/ChatPanel';
 import { EventLogPanel } from './components/events/EventLogPanel';
 
 export default function App() {
-  const wallet = useWalletConnect();
+  const wallet = useAutoConnect();
   const [section, setSection] = useState<Section>('assets');
 
   if (!wallet.isConnected) {
