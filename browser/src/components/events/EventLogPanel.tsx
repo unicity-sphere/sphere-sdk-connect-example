@@ -34,8 +34,9 @@ const ALL_EVENTS = [
   'sync:provider',
   'sync:error',
   'sync:remote-update',
-  // Connection
+  // Connection & wallet state
   'connection:changed',
+  'wallet:locked',
   // Identity & addresses
   'identity:changed',
   'nametag:registered',
@@ -76,8 +77,9 @@ const EVENT_COLORS: Record<string, string> = {
   'sync:provider': 'bg-gray-100 text-gray-600',
   'sync:error': 'bg-red-100 text-red-700',
   'sync:remote-update': 'bg-gray-100 text-gray-600',
-  // Connection
+  // Connection & wallet state
   'connection:changed': 'bg-yellow-100 text-yellow-700',
+  'wallet:locked': 'bg-red-100 text-red-700',
   // Identity & addresses
   'identity:changed': 'bg-blue-100 text-blue-700',
   'nametag:registered': 'bg-purple-100 text-purple-700',
