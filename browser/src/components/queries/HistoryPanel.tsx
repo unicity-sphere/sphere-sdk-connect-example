@@ -1,27 +1,54 @@
-import { useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { RPC_METHODS } from '@unicitylabs/sphere-sdk/connect';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { StatusBadge } from '../ui/StatusBadge';
-import { relativeTime } from '../../lib/format';
-import type { HistoryEntry } from '../../lib/types';
+import { CoinBadge } from '../ui/CoinBadge';
+import { formatAmount, relativeTime, truncate } from '../../lib/format';
+import type { Asset, HistoryEntry } from '../../lib/types';
 
 interface Props {
   query: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
 }
 
+interface CoinMeta {
+  decimals: number;
+  symbol: string;
+  iconUrl?: string | null;
+}
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+
 export function HistoryPanel({ query }: Props) {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [coinMap, setCoinMap] = useState<Record<string, CoinMeta>>({});
   const [raw, setRaw] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   const execute = async () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await query<HistoryEntry[]>(RPC_METHODS.GET_HISTORY);
-      setEntries(result ?? []);
-      setRaw(result);
+      // Fetch history + assets in parallel.
+      // Assets are needed to resolve `decimals` per coinId so amounts render
+      // human-readable (same as the wallet UI), instead of raw smallest-unit strings.
+      const [history, assets] = await Promise.all([
+        query<HistoryEntry[]>(RPC_METHODS.GET_HISTORY),
+        query<Asset[]>(RPC_METHODS.GET_ASSETS),
+      ]);
+
+      const map: Record<string, CoinMeta> = {};
+      for (const a of assets ?? []) {
+        map[a.coinId] = { decimals: a.decimals, symbol: a.symbol, iconUrl: a.iconUrl };
+      }
+
+      setCoinMap(map);
+      setEntries(history ?? []);
+      setRaw(history);
+      setPage(0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed');
     } finally {
@@ -29,13 +56,29 @@ export function HistoryPanel({ query }: Props) {
     }
   };
 
+  const stats = useMemo(() => {
+    let sent = 0;
+    let received = 0;
+    let other = 0;
+    for (const e of entries) {
+      if (e.type === 'SENT') sent++;
+      else if (e.type === 'RECEIVED') received++;
+      else other++;
+    }
+    return { total: entries.length, sent, received, other };
+  }, [entries]);
+
+  const totalPages = Math.max(1, Math.ceil(entries.length / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageEntries = entries.slice(safePage * pageSize, safePage * pageSize + pageSize);
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-semibold text-gray-900">History</h2>
         <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">sphere_getHistory</span>
       </div>
-      <p className="text-xs text-gray-400 mb-4">Transaction history</p>
+      <p className="text-xs text-gray-400 mb-4">Transaction history with paginated table view</p>
 
       <button onClick={execute} disabled={loading}
         className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
@@ -43,29 +86,150 @@ export function HistoryPanel({ query }: Props) {
       </button>
 
       {entries.length > 0 && !error && (
-        <div className="mt-4 space-y-2">
-          {entries.map((e, i) => (
-            <div key={e.id ?? i} className="p-3 bg-gray-50 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <StatusBadge status={e.type} />
-                <div>
-                  <div className="font-mono text-sm text-gray-900">
-                    {e.type === 'SENT' ? '-' : '+'}{e.amount} {e.symbol ?? e.coinId}
-                  </div>
-                  {e.recipientNametag && <div className="text-xs text-gray-400">to @{e.recipientNametag}</div>}
-                  {e.senderNametag && <div className="text-xs text-gray-400">from @{e.senderNametag}</div>}
-                  {!e.recipientNametag && !e.senderNametag && e.senderPubkey && (
-                    <div className="text-xs text-gray-400 font-mono">{e.senderPubkey.slice(0, 16)}...</div>
-                  )}
-                </div>
-              </div>
-              <div className="text-xs text-gray-400">{relativeTime(e.timestamp)}</div>
-            </div>
-          ))}
-        </div>
+        <>
+          <SummaryCards stats={stats} />
+          <HistoryTable entries={pageEntries} coinMap={coinMap} />
+          <Pagination
+            page={safePage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalCount={entries.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(0); }}
+          />
+        </>
       )}
 
       <ResultDisplay result={raw} error={error} />
+    </div>
+  );
+}
+
+// ── Summary cards ────────────────────────────────────────────────────────────
+
+function SummaryCards({ stats }: { stats: { total: number; sent: number; received: number; other: number } }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
+      <StatCard label="Total" value={stats.total} accent="bg-gray-50 text-gray-900" />
+      <StatCard label="Sent" value={stats.sent} accent="bg-orange-50 text-orange-700" />
+      <StatCard label="Received" value={stats.received} accent="bg-green-50 text-green-700" />
+      <StatCard label="Other" value={stats.other} accent="bg-gray-50 text-gray-500" />
+    </div>
+  );
+}
+
+function StatCard({ label, value, accent }: { label: string; value: number; accent: string }) {
+  return (
+    <div className={`rounded-xl p-3 ${accent}`}>
+      <div className="text-[11px] uppercase tracking-wide font-medium opacity-70">{label}</div>
+      <div className="font-mono text-2xl font-semibold mt-1">{value}</div>
+    </div>
+  );
+}
+
+// ── Table ────────────────────────────────────────────────────────────────────
+
+function HistoryTable({ entries, coinMap }: { entries: HistoryEntry[]; coinMap: Record<string, CoinMeta> }) {
+  return (
+    <div className="mt-4 overflow-x-auto rounded-xl border border-gray-100">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+          <tr>
+            <th className="text-left px-3 py-2 font-medium">Type</th>
+            <th className="text-right px-3 py-2 font-medium">Amount</th>
+            <th className="text-left px-3 py-2 font-medium">Coin</th>
+            <th className="text-left px-3 py-2 font-medium">Counterparty</th>
+            <th className="text-right px-3 py-2 font-medium">Time</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {entries.map((e, i) => {
+            const meta = coinMap[e.coinId];
+            const decimals = meta?.decimals ?? 0;
+            const symbol = meta?.symbol ?? e.symbol ?? e.coinId;
+            const iconUrl = meta?.iconUrl;
+            const sign = e.type === 'SENT' ? '-' : e.type === 'RECEIVED' ? '+' : '';
+            const amountColor = e.type === 'SENT' ? 'text-orange-700' : e.type === 'RECEIVED' ? 'text-green-700' : 'text-gray-700';
+
+            return (
+              <tr key={e.id ?? i} className="hover:bg-gray-50">
+                <td className="px-3 py-2"><StatusBadge status={e.type} /></td>
+                <td className={`px-3 py-2 text-right font-mono ${amountColor}`}>
+                  {sign}{formatAmount(e.amount, decimals)}
+                </td>
+                <td className="px-3 py-2"><CoinBadge symbol={symbol} iconUrl={iconUrl} size="sm" /></td>
+                <td className="px-3 py-2 text-gray-600">
+                  {renderCounterparty(e)}
+                </td>
+                <td className="px-3 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
+                  {relativeTime(e.timestamp)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function renderCounterparty(e: HistoryEntry): ReactNode {
+  if (e.type === 'SENT' && e.recipientNametag) return <span>to @{e.recipientNametag}</span>;
+  if (e.type === 'RECEIVED' && e.senderNametag) return <span>from @{e.senderNametag}</span>;
+  if (e.senderPubkey) return <span className="font-mono text-xs">{truncate(e.senderPubkey, 6, 4)}</span>;
+  return <span className="text-gray-300">—</span>;
+}
+
+// ── Pagination ───────────────────────────────────────────────────────────────
+
+function Pagination({
+  page, totalPages, pageSize, totalCount, onPageChange, onPageSizeChange,
+}: {
+  page: number;
+  totalPages: number;
+  pageSize: number;
+  totalCount: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}) {
+  const start = page * pageSize + 1;
+  const end = Math.min((page + 1) * pageSize, totalCount);
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-gray-500">
+      <div className="flex items-center gap-2">
+        <span>Rows per page:</span>
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          className="border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+        >
+          {PAGE_SIZE_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <span className="font-mono">{start}–{end} of {totalCount}</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 0}
+            className="px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            ← Prev
+          </button>
+          <span className="font-mono px-2">{page + 1} / {totalPages}</span>
+          <button
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= totalPages - 1}
+            className="px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            Next →
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
