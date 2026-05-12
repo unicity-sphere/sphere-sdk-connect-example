@@ -1,0 +1,23 @@
+{
+  "name": "@sphere-connect-example/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@fastify/jwt": "^10.0.0",
+    "@unicitylabs/sphere-sdk": "file:../../sphere-sdk",
+    "fastify": "^5.0.0",
+    "nanoid": "^5.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.15.7",
+    "typescript": "^5.9.0"
+  }
+}
