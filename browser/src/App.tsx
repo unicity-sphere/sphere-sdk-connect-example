@@ -21,7 +21,6 @@ import { DMPanel } from './components/intents/DMPanel';
 import { PaymentRequestPanel } from './components/intents/PaymentRequestPanel';
 import { ReceivePanel } from './components/intents/ReceivePanel';
 import { SignMessagePanel } from './components/intents/SignMessagePanel';
-import { BackendAuthPanel } from './components/intents/BackendAuthPanel';
 
 // Chat
 import { ChatPanel } from './components/chat/ChatPanel';
@@ -79,7 +78,6 @@ export default function App() {
     'payment-request': <PaymentRequestPanel intent={intent} query={query} />,
     'receive': <ReceivePanel intent={intent} />,
     'sign-message': <SignMessagePanel intent={intent} />,
-    'backend-auth': <BackendAuthPanel intent={intent} chainPubkey={wallet.identity?.chainPubkey} />,
     'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} />,
     'events': <EventLogPanel on={on} />,
   };

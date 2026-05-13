@@ -40,8 +40,7 @@ sphere-sdk-connect-example/
 │   │       │   ├── DMPanel.tsx           # dm (recipient, message)
 │   │       │   ├── PaymentRequestPanel.tsx # payment_request (recipient, amount, coin, message)
 │   │       │   ├── ReceivePanel.tsx      # receive (button only, no params)
-│   │       │   ├── SignMessagePanel.tsx  # sign_message (message textarea)
-│   │       │   └── BackendAuthPanel.tsx  # end-to-end: challenge → sign → verify → JWT → /me
+│   │       │   └── SignMessagePanel.tsx  # sign_message (message textarea)
 │   │       └── events/
 │   │           └── EventLogPanel.tsx # All 9 events, color-coded, filterable
 │   ├── index.html
@@ -49,19 +48,12 @@ sphere-sdk-connect-example/
 │   ├── tsconfig.json
 │   └── vite.config.ts
 │
-├── nodejs/                    # Node.js CLI example
-│   ├── src/
-│   │   ├── index.ts               # Interactive CLI client (all queries + intents)
-│   │   └── mock-wallet-server.ts  # Mock wallet with rich test data
-│   ├── package.json
-│   └── tsconfig.json
-│
-└── backend/                    # Node.js backend example
+└── nodejs/                    # Node.js CLI example
     ├── src/
-    │   ├── index.ts            # Fastify bootstrap
-    │   └── auth.ts             # /auth/challenge + /auth/verify + /me
+    │   ├── index.ts               # Interactive CLI client (all queries + intents)
+    │   └── mock-wallet-server.ts  # Mock wallet with rich test data
     ├── package.json
-    └── README.md
+    └── tsconfig.json
 ```
 
 ## Quick Start
@@ -88,18 +80,6 @@ npm run server     # WebSocket server on ws://localhost:8765
 # Terminal 2: Run CLI client
 npm run client     # Connects to ws://localhost:8765
 ```
-
-### Backend example
-
-```bash
-cd backend
-npm install
-npm run dev    # Fastify server on http://localhost:4000
-```
-
-Endpoints: `POST /auth/challenge`, `POST /auth/verify`, `GET /me` (Bearer JWT).
-Pair with the `browser/` dApp (**Backend Auth** panel) and any Sphere wallet for a full end-to-end
-auth demo using `verifySphereAuth` from `@unicitylabs/sphere-sdk`.
 
 CLI commands:
 - **Queries:** `identity`, `balance`, `assets`, `fiat`, `tokens`, `history`, `l1`, `l1history [limit]`, `resolve @tag`

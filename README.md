@@ -15,8 +15,7 @@ dApp (ConnectClient)  ←→  Transport  ←→  Wallet (ConnectHost)
 ```
 sphere-sdk-connect-example/
 ├── browser/     # React dApp example (Vite + Tailwind)
-├── nodejs/      # Node.js CLI client + mock wallet server
-└── backend/     # Fastify backend demo (verifySphereAuth)
+└── nodejs/      # Node.js CLI client + mock wallet server
 ```
 
 ## Quick Start
@@ -39,17 +38,6 @@ npm install
 npm run server     # Terminal 1: mock wallet (ws://localhost:8765)
 npm run client     # Terminal 2: CLI client
 ```
-
-### Backend example
-
-```bash
-cd backend
-npm install
-npm run dev    # http://localhost:4000
-```
-
-Demonstrates the full auth flow: `POST /auth/challenge` → wallet signs → `POST /auth/verify` → JWT → `GET /me`.
-Pair with the `browser/` dApp (**Backend Auth** panel) and any Sphere wallet for a complete end-to-end demo.
 
 ## Browser Example Features
 
