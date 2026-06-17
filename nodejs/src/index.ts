@@ -6,7 +6,7 @@
  *   2. Run client:        npx tsx src/index.ts
  */
 
-import { ConnectClient, RPC_METHODS, INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
+import { ConnectClient, RPC_METHODS, INTENT_ACTIONS, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
 import { WebSocketTransport } from '@unicitylabs/sphere-sdk/connect/nodejs';
 import WebSocket from 'ws';
 import readline from 'readline';
@@ -31,6 +31,7 @@ async function main() {
       description: 'Sphere Connect Node.js demo',
       url: 'cli://local',
     },
+    network: SPHERE_NETWORKS.testnet2,
   });
 
   const result = await client.connect();

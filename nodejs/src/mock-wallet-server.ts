@@ -12,6 +12,7 @@ const now = Date.now();
 
 // Mock Sphere object matching the SphereInstance interface expected by ConnectHost
 const mockSphere = {
+  networkId: 4,
   identity: {
     chainPubkey: '02abc123def456789012345678901234567890123456789012345678901234567890',
     l1Address: 'alpha1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',

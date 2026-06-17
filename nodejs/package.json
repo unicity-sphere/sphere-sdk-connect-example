@@ -8,7 +8,7 @@
     "client": "npx tsx src/index.ts"
   },
   "dependencies": {
-    "@unicitylabs/sphere-sdk": "^0.7.0",
+    "@unicitylabs/sphere-sdk": "0.10.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {

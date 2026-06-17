@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { ConnectClient, HOST_READY_TYPE, HOST_READY_TIMEOUT, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect';
+import { ConnectClient, HOST_READY_TYPE, HOST_READY_TIMEOUT, WALLET_EVENTS, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
 import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sdk/connect/browser';
 import type { ConnectTransport, PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
 import type { PermissionScope } from '@unicitylabs/sphere-sdk/connect';
@@ -89,6 +89,12 @@ export function useWalletConnect(): UseWalletConnect {
     url: location.origin,
   } as const;
 
+  const makeClient = (
+    transport: ConnectTransport,
+    extra: { resumeSessionId?: string; silent?: boolean } = {},
+  ): ConnectClient =>
+    new ConnectClient({ transport, dapp: dappMeta, network: SPHERE_NETWORKS.testnet2, ...extra });
+
   /**
    * Open (or re-open) popup, create fresh transport + client, do handshake.
    * Wallet remembers approved origin so re-connect skips the approval modal.
@@ -118,7 +124,7 @@ export function useWalletConnect(): UseWalletConnect {
     await waitForHostReady();
 
     const resumeSessionId = sessionStorage.getItem(SESSION_KEY_POPUP) ?? undefined;
-    const client = new ConnectClient({ transport, dapp: dappMeta, resumeSessionId });
+    const client = makeClient(transport, { resumeSessionId });
     clientRef.current = client;
 
     const result = await client.connect();
@@ -163,7 +169,7 @@ export function useWalletConnect(): UseWalletConnect {
       popupMode.current = false;
       const transport = ExtensionTransport.forClient();
       transportRef.current = transport;
-      const client = new ConnectClient({ transport, dapp: dappMeta });
+      const client = makeClient(transport);
       clientRef.current = client;
       const result = await client.connect();
       setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
@@ -182,7 +188,7 @@ export function useWalletConnect(): UseWalletConnect {
         popupMode.current = false;
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
-        const client = new ConnectClient({ transport, dapp: dappMeta });
+        const client = makeClient(transport);
         clientRef.current = client;
         const result = await client.connect();
         setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
@@ -208,7 +214,7 @@ export function useWalletConnect(): UseWalletConnect {
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
 
-        const client = new ConnectClient({ transport, dapp: dappMeta });
+        const client = makeClient(transport);
         clientRef.current = client;
 
         const result = await client.connect();
@@ -374,7 +380,7 @@ export function useWalletConnect(): UseWalletConnect {
         popupMode.current = false;
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
-        const client = new ConnectClient({ transport, dapp: dappMeta, silent: true });
+        const client = makeClient(transport, { silent: true });
         clientRef.current = client;
         try {
           const result = await client.connect();
@@ -396,7 +402,7 @@ export function useWalletConnect(): UseWalletConnect {
         const transport = ExtensionTransport.forClient();
         transportRef.current = transport;
 
-        const client = new ConnectClient({ transport, dapp: dappMeta, silent: true });
+        const client = makeClient(transport, { silent: true });
         clientRef.current = client;
 
         try {
@@ -437,7 +443,7 @@ export function useWalletConnect(): UseWalletConnect {
 
           await waitForHostReady(5000);
 
-          const client = new ConnectClient({ transport, dapp: dappMeta, resumeSessionId: savedSession, silent: true });
+          const client = makeClient(transport, { resumeSessionId: savedSession, silent: true });
           clientRef.current = client;
           const result = await client.connect();
           sessionStorage.setItem(SESSION_KEY_POPUP, result.sessionId);
