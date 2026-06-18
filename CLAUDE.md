@@ -25,14 +25,14 @@ sphere-sdk-connect-example/
 │   │       │   ├── CoinBadge.tsx    # Token icon (img or colored letter) + symbol
 │   │       │   ├── CoinSelect.tsx   # Dropdown token selector (fetches assets from wallet)
 │   │       │   └── StatusBadge.tsx  # Colored status badges (confirmed/pending/failed)
-│   │       ├── queries/             # 7 query panels (read-only operations)
+│   │       ├── queries/             # 6 query panels (read-only operations)
 │   │       │   ├── IdentityPanel.tsx     # sphere_getIdentity
 │   │       │   ├── AssetsPanel.tsx       # sphere_getAssets (table with icons, fiat, 24h)
 │   │       │   ├── BalancePanel.tsx      # sphere_getBalance + sphere_getFiatBalance
 │   │       │   ├── TokensPanel.tsx       # sphere_getTokens (with status badges)
 │   │       │   ├── HistoryPanel.tsx      # sphere_getHistory (with type badges)
 │   │       │   └── ResolvePanel.tsx      # sphere_resolve (identifier input)
-│   │       ├── intents/             # 7 intent panels (require wallet approval)
+│   │       ├── intents/             # 6 intent panels (require wallet approval)
 │   │       │   ├── SendPanel.tsx         # send (recipient, amount, coin selector, memo)
 │   │       │   ├── MintPanel.tsx         # mint (coinId, amount)
 │   │       │   ├── DMPanel.tsx           # dm (recipient, message)
@@ -40,7 +40,7 @@ sphere-sdk-connect-example/
 │   │       │   ├── ReceivePanel.tsx      # receive (button only, no params)
 │   │       │   └── SignMessagePanel.tsx  # sign_message (message textarea)
 │   │       └── events/
-│   │           └── EventLogPanel.tsx # All 9 events, color-coded, filterable
+│   │           └── EventLogPanel.tsx # Color-coded, filterable event log
 │   ├── index.html
 │   ├── package.json
 │   ├── tsconfig.json
@@ -86,9 +86,9 @@ CLI commands:
 
 ## Dependencies
 
-Both subprojects use a **local** sphere-sdk link:
+Both subprojects pin a published sphere-sdk version:
 ```json
-"@unicitylabs/sphere-sdk": "file:../../sphere-sdk"
+"@unicitylabs/sphere-sdk": "0.10.2"
 ```
 
 - **Browser:** React 19, Vite 7, Tailwind CSS 4
@@ -159,10 +159,10 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 | Intent Action | Description | Required Permission |
 |--------------|-------------|---------------------|
 | `send` | L3 token transfer | `transfer:request` |
-| `mint` | Self-mint a fungible token | `transfer:request` |
+| `mint` | Self-mint a fungible token | `mint:request` |
 | `dm` | Direct message | `dm:request` |
 | `payment_request` | Payment request | `payment:request` |
-| `receive` | Receive incoming tokens | `transfer:request` |
+| `receive` | Receive incoming tokens | `identity:read` |
 | `sign_message` | Message signing | `sign:request` |
 
 ### Connection Flow
@@ -178,7 +178,7 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 ### Browser Connection Modes
 
 **Popup mode** (default in this example):
-- Opens wallet at `WALLET_URL + '/#/connect?origin=...'`
+- Opens wallet at `WALLET_URL + '/connect?origin=...'`
 - Waits for `HOST_READY_TYPE` message before establishing transport
 - Popup close is treated as disconnection
 
@@ -190,7 +190,7 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 
 ```typescript
 SPHERE_CONNECT_NAMESPACE = 'sphere-connect'
-SPHERE_CONNECT_VERSION = '1.0'
+SPHERE_CONNECT_VERSION = '2.0'
 HOST_READY_TYPE = 'sphere-connect:host-ready'
 HOST_READY_TIMEOUT = 30_000  // ms
 ```
@@ -205,6 +205,8 @@ HOST_READY_TIMEOUT = 30_000  // ms
 | 4004 | `SESSION_EXPIRED` | Session TTL exceeded |
 | 4005 | `ORIGIN_BLOCKED` | Origin not allowed |
 | 4006 | `RATE_LIMITED` | Too many requests |
+| 4007 | `UNSUPPORTED_PROTOCOL_VERSION` | Connect protocol MAJOR mismatch |
+| 4008 | `INCOMPATIBLE_NETWORK` | dApp targets a different network than the wallet |
 | 4100 | `INSUFFICIENT_BALANCE` | Not enough tokens |
 | 4101 | `INVALID_RECIPIENT` | Bad recipient address |
 | 4102 | `TRANSFER_FAILED` | Transfer error |
