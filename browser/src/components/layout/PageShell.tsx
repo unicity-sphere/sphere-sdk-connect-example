@@ -29,6 +29,7 @@ const INTENTS: NavItem[] = [
   { key: 'payment-request', label: 'Pay Request' },
   { key: 'receive', label: 'Receive' },
   { key: 'sign-message', label: 'Sign Message' },
+  { key: 'mint', label: 'Mint' },
 ];
 const CHAT: NavItem[] = [
   { key: 'chat', label: 'Chat' },

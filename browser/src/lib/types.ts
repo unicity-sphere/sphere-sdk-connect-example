@@ -98,6 +98,6 @@ export interface ConversationPage {
 export type Section =
   | 'identity' | 'assets' | 'balance' | 'tokens' | 'history'
   | 'l1-balance' | 'l1-history' | 'resolve'
-  | 'send' | 'l1-send' | 'dm' | 'payment-request' | 'receive' | 'sign-message'
+  | 'send' | 'l1-send' | 'dm' | 'payment-request' | 'receive' | 'sign-message' | 'mint'
   | 'chat'
   | 'events';
