@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Button } from '@unicitylabs/sphere-ui';
+import { EnvSwitch } from './EnvSwitch';
 
 interface ConnectButtonProps {
   onConnect: () => void;
@@ -19,33 +19,6 @@ function Spinner() {
   );
 }
 
-function ExtensionIcon({ detected }: { detected: boolean }) {
-  return (
-    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${detected ? 'bg-green-500/15' : 'bg-white/6'}`}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5A2.5 2.5 0 0 0 10.5 1 2.5 2.5 0 0 0 8 3.5V5H4a2 2 0 0 0-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 0 0 2 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7 1.5 0 2.7 1.2 2.7 2.7V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"
-          fill={detected ? '#4ade80' : '#6b7280'}
-        />
-      </svg>
-    </div>
-  );
-}
-
-function PopupIcon() {
-  return (
-    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 bg-orange-500/10">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-        <rect x="2" y="4" width="20" height="16" rx="2" stroke="#f97316" strokeWidth="2" />
-        <path d="M2 8h20" stroke="#f97316" strokeWidth="2" />
-        <circle cx="5.5" cy="6" r="1" fill="#f97316" />
-        <circle cx="8.5" cy="6" r="1" fill="#f97316" />
-        <path d="M10 13l3-3m0 0h-2.5m2.5 0v2.5" stroke="#f97316" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
-}
-
 export function ConnectButton({
   onConnect,
   onConnectExtension,
@@ -54,108 +27,42 @@ export function ConnectButton({
   extensionInstalled,
   error,
 }: ConnectButtonProps) {
-  const [showModal, setShowModal] = useState(false);
-
-  // Suppress unused warning — onConnect is kept for P1 iframe usage upstream
+  // Extension connection is temporarily hidden — popup is the only method for now,
+  // so "Connect Wallet" opens the popup directly (no method chooser modal).
+  // These props are kept so re-enabling the extension option needs no App.tsx change.
   void onConnect;
-
-  const handleExtension = () => {
-    setShowModal(false);
-    onConnectExtension();
-  };
-
-  const handlePopup = () => {
-    setShowModal(false);
-    onConnectPopup();
-  };
+  void onConnectExtension;
+  void extensionInstalled;
 
   return (
-    <>
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-white mb-2">Sphere Connect</h1>
-          <p className="text-white/45 text-lg">Browser dApp Example</p>
-        </div>
-
-        <Button
-          onClick={() => !isConnecting && setShowModal(true)}
-          disabled={isConnecting}
-          className="px-8 py-4 text-lg shadow-lg shadow-orange-500/25"
-        >
-          {isConnecting ? (
-            <span className="flex items-center gap-2">
-              <Spinner />
-              Connecting...
-            </span>
-          ) : (
-            'Connect Wallet'
-          )}
-        </Button>
-
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl max-w-md text-center text-sm">
-            {error}
-          </div>
-        )}
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-white mb-2">Sphere Connect</h1>
+        <p className="text-white/45 text-lg">Browser dApp Example</p>
       </div>
 
-      {/* Connection method modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            className="admin-card p-6 w-full max-w-sm mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-xl font-bold text-white text-center mb-1">Choose connection</h2>
-            <p className="text-sm text-white/45 text-center mb-6">
-              How would you like to connect your Sphere wallet?
-            </p>
+      <EnvSwitch />
 
-            <div className="flex gap-3">
-              {/* Extension option */}
-              <button
-                onClick={handleExtension}
-                disabled={!extensionInstalled}
-                className={`flex-1 flex flex-col items-center p-4 rounded-2xl border-2 transition-all
-                  ${extensionInstalled
-                    ? 'border-green-500/30 hover:border-green-400 hover:bg-green-500/10 cursor-pointer'
-                    : 'border-white/8 bg-white/3 cursor-not-allowed opacity-50'
-                  }`}
-              >
-                <ExtensionIcon detected={extensionInstalled} />
-                <span className={`text-sm font-semibold ${extensionInstalled ? 'text-white' : 'text-white/45'}`}>
-                  Extension
-                </span>
-                <span className="text-xs text-white/45 mt-0.5 text-center leading-tight">
-                  {extensionInstalled ? 'Sphere extension detected' : 'Not installed'}
-                </span>
-              </button>
+      <Button
+        onClick={() => !isConnecting && onConnectPopup()}
+        disabled={isConnecting}
+        className="px-8 py-4 text-lg shadow-lg shadow-orange-500/25"
+      >
+        {isConnecting ? (
+          <span className="flex items-center gap-2">
+            <Spinner />
+            Connecting...
+          </span>
+        ) : (
+          'Connect Wallet'
+        )}
+      </Button>
 
-              {/* Popup option */}
-              <button
-                onClick={handlePopup}
-                className="flex-1 flex flex-col items-center p-4 rounded-2xl border-2 border-orange-500/30 hover:border-orange-400 hover:bg-orange-500/10 transition-all cursor-pointer"
-              >
-                <PopupIcon />
-                <span className="text-sm font-semibold text-white">Popup</span>
-                <span className="text-xs text-white/45 mt-0.5 text-center leading-tight">
-                  Opens sphere.unicity.network
-                </span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => setShowModal(false)}
-              className="mt-4 w-full text-sm text-white/45 hover:text-white/70 transition-colors py-1"
-            >
-              Cancel
-            </button>
-          </div>
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl max-w-md text-center text-sm">
+          {error}
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
 import { Button } from '@unicitylabs/sphere-ui';
 import { truncate } from '../../lib/format';
+import { EnvSwitch } from '../EnvSwitch';
 
 interface WalletHeaderProps {
   identity: PublicIdentity;
@@ -21,6 +22,7 @@ export function WalletHeader({ identity, onDisconnect }: WalletHeaderProps) {
         </span>
       </div>
       <div className="flex items-center gap-3">
+        <EnvSwitch />
         <span className="inline-flex items-center gap-1.5 text-xs text-green-400">
           <span className="w-2 h-2 rounded-full bg-green-500" />
           Connected

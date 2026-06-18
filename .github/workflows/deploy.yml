@@ -3,7 +3,7 @@ name: Deploy Browser App to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: [browser/**]
+    paths: [browser/**, .github/workflows/deploy.yml]
   workflow_dispatch:
 
 permissions:
@@ -32,10 +32,24 @@ jobs:
 
       - run: npm install
 
-      - name: Build
+      # Two builds into one Pages artifact (one repo = one Pages site).
+      # Same code, different wallet target baked in via VITE_WALLET_URL:
+      #   /          → production wallet (sphere.unicity.network)
+      #   /staging/  → staging wallet (sphere repo's gh-pages `main` branch deploy)
+      - name: Build (production wallet → /)
         run: npm run build
         env:
           VITE_BASE_PATH: /sphere-sdk-connect-example/
+          VITE_WALLET_URL: https://sphere.unicity.network
+
+      # Runs after the prod build so emptyOutDir only clears dist/staging,
+      # leaving the prod bundle in dist/ intact. Skips the redundant tsc -b
+      # (already type-checked by the prod build above).
+      - name: Build (staging wallet → /staging/)
+        run: npx vite build --outDir dist/staging
+        env:
+          VITE_BASE_PATH: /sphere-sdk-connect-example/staging/
+          VITE_WALLET_URL: https://unicity-sphere.github.io/sphere/main
 
       - uses: actions/upload-pages-artifact@v3
         with:
