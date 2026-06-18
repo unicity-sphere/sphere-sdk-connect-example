@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from '@unicitylabs/sphere-ui';
 
 interface ConnectButtonProps {
   onConnect: () => void;
@@ -20,11 +21,11 @@ function Spinner() {
 
 function ExtensionIcon({ detected }: { detected: boolean }) {
   return (
-    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${detected ? 'bg-green-100' : 'bg-gray-100'}`}>
+    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${detected ? 'bg-green-500/15' : 'bg-white/6'}`}>
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
         <path
           d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5A2.5 2.5 0 0 0 10.5 1 2.5 2.5 0 0 0 8 3.5V5H4a2 2 0 0 0-2 2v3.8h1.5c1.5 0 2.7 1.2 2.7 2.7S5 16.2 3.5 16.2H2V20a2 2 0 0 0 2 2h3.8v-1.5c0-1.5 1.2-2.7 2.7-2.7 1.5 0 2.7 1.2 2.7 2.7V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 2.5-2.5 2.5 2.5 0 0 0-2.5-2.5z"
-          fill={detected ? '#16a34a' : '#9ca3af'}
+          fill={detected ? '#4ade80' : '#6b7280'}
         />
       </svg>
     </div>
@@ -33,7 +34,7 @@ function ExtensionIcon({ detected }: { detected: boolean }) {
 
 function PopupIcon() {
   return (
-    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 bg-orange-100">
+    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 bg-orange-500/10">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
         <rect x="2" y="4" width="20" height="16" rx="2" stroke="#f97316" strokeWidth="2" />
         <path d="M2 8h20" stroke="#f97316" strokeWidth="2" />
@@ -72,14 +73,14 @@ export function ConnectButton({
     <>
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Sphere Connect</h1>
-          <p className="text-gray-500 text-lg">Browser dApp Example</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Sphere Connect</h1>
+          <p className="text-white/45 text-lg">Browser dApp Example</p>
         </div>
 
-        <button
+        <Button
           onClick={() => !isConnecting && setShowModal(true)}
           disabled={isConnecting}
-          className="px-8 py-4 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-semibold rounded-2xl text-lg transition-colors shadow-lg shadow-orange-500/25 cursor-pointer disabled:cursor-not-allowed"
+          className="px-8 py-4 text-lg shadow-lg shadow-orange-500/25"
         >
           {isConnecting ? (
             <span className="flex items-center gap-2">
@@ -89,10 +90,10 @@ export function ConnectButton({
           ) : (
             'Connect Wallet'
           )}
-        </button>
+        </Button>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl max-w-md text-center text-sm">
+          <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl max-w-md text-center text-sm">
             {error}
           </div>
         )}
@@ -101,15 +102,15 @@ export function ConnectButton({
       {/* Connection method modal */}
       {showModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={() => setShowModal(false)}
         >
           <div
-            className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm mx-4"
+            className="admin-card p-6 w-full max-w-sm mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-gray-900 text-center mb-1">Choose connection</h2>
-            <p className="text-sm text-gray-500 text-center mb-6">
+            <h2 className="text-xl font-bold text-white text-center mb-1">Choose connection</h2>
+            <p className="text-sm text-white/45 text-center mb-6">
               How would you like to connect your Sphere wallet?
             </p>
 
@@ -120,15 +121,15 @@ export function ConnectButton({
                 disabled={!extensionInstalled}
                 className={`flex-1 flex flex-col items-center p-4 rounded-2xl border-2 transition-all
                   ${extensionInstalled
-                    ? 'border-green-200 hover:border-green-400 hover:bg-green-50 cursor-pointer'
-                    : 'border-gray-100 bg-gray-50 cursor-not-allowed opacity-50'
+                    ? 'border-green-500/30 hover:border-green-400 hover:bg-green-500/10 cursor-pointer'
+                    : 'border-white/8 bg-white/3 cursor-not-allowed opacity-50'
                   }`}
               >
                 <ExtensionIcon detected={extensionInstalled} />
-                <span className={`text-sm font-semibold ${extensionInstalled ? 'text-gray-900' : 'text-gray-400'}`}>
+                <span className={`text-sm font-semibold ${extensionInstalled ? 'text-white' : 'text-white/45'}`}>
                   Extension
                 </span>
-                <span className="text-xs text-gray-400 mt-0.5 text-center leading-tight">
+                <span className="text-xs text-white/45 mt-0.5 text-center leading-tight">
                   {extensionInstalled ? 'Sphere extension detected' : 'Not installed'}
                 </span>
               </button>
@@ -136,11 +137,11 @@ export function ConnectButton({
               {/* Popup option */}
               <button
                 onClick={handlePopup}
-                className="flex-1 flex flex-col items-center p-4 rounded-2xl border-2 border-orange-200 hover:border-orange-400 hover:bg-orange-50 transition-all cursor-pointer"
+                className="flex-1 flex flex-col items-center p-4 rounded-2xl border-2 border-orange-500/30 hover:border-orange-400 hover:bg-orange-500/10 transition-all cursor-pointer"
               >
                 <PopupIcon />
-                <span className="text-sm font-semibold text-gray-900">Popup</span>
-                <span className="text-xs text-gray-400 mt-0.5 text-center leading-tight">
+                <span className="text-sm font-semibold text-white">Popup</span>
+                <span className="text-xs text-white/45 mt-0.5 text-center leading-tight">
                   Opens sphere.unicity.network
                 </span>
               </button>
@@ -148,7 +149,7 @@ export function ConnectButton({
 
             <button
               onClick={() => setShowModal(false)}
-              className="mt-4 w-full text-sm text-gray-400 hover:text-gray-600 transition-colors py-1"
+              className="mt-4 w-full text-sm text-white/45 hover:text-white/70 transition-colors py-1"
             >
               Cancel
             </button>

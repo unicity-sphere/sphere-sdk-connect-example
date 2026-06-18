@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
+import { Button, Input } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { CoinSelect } from '../ui/CoinSelect';
 
@@ -36,31 +37,28 @@ export function PaymentRequestPanel({ intent, query }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-semibold text-gray-900">Payment Request</h2>
-        <span className="text-[10px] font-mono text-orange-500 bg-orange-50 px-2 py-0.5 rounded">intent: payment_request</span>
+        <h2 className="text-lg font-semibold text-white">Payment Request</h2>
+        <span className="text-[10px] font-mono text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded">intent: payment_request</span>
       </div>
-      <p className="text-xs text-gray-400 mb-1">Request payment from another user</p>
-      <p className="text-[11px] text-yellow-600 mb-4">Requires wallet approval</p>
+      <p className="text-xs text-white/45 mb-1">Request payment from another user</p>
+      <p className="text-[11px] text-amber-400 mb-4">Requires wallet approval</p>
 
       <div className="space-y-3">
-        <input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
-          placeholder="Recipient (@nametag)"
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" />
+        <Input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
+          placeholder="Recipient (@nametag)" />
         <div className="flex gap-2">
-          <input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
+          <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount"
-            className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" />
+            className="flex-1" />
           <CoinSelect value={coinId} onChange={setCoinId} query={query} />
         </div>
-        <input type="text" value={message} onChange={(e) => setMessage(e.target.value)}
-          placeholder="Message (optional)"
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" />
-        <button onClick={execute} disabled={loading || !recipient || !amount || !coinId}
-          className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
+        <Input type="text" value={message} onChange={(e) => setMessage(e.target.value)}
+          placeholder="Message (optional)" />
+        <Button onClick={execute} disabled={loading || !recipient || !amount || !coinId} className="w-full">
           {loading ? 'Sending...' : 'Send Payment Request'}
-        </button>
+        </Button>
       </div>
 
       <ResultDisplay result={raw} error={error} />

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
+import { Button } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 
 interface Props {
@@ -26,20 +27,19 @@ export function ReceivePanel({ intent }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-semibold text-gray-900">Receive</h2>
-        <span className="text-[10px] font-mono text-orange-500 bg-orange-50 px-2 py-0.5 rounded">intent: receive</span>
+        <h2 className="text-lg font-semibold text-white">Receive</h2>
+        <span className="text-[10px] font-mono text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded">intent: receive</span>
       </div>
-      <p className="text-xs text-gray-400 mb-1">Explicit one-shot poll for pending incoming transfers via Nostr</p>
-      <p className="text-[11px] text-gray-400 mb-1">In a live wallet transfers arrive automatically — this is for CLI/batch scenarios without a persistent connection</p>
+      <p className="text-xs text-white/45 mb-1">Explicit one-shot poll for pending incoming transfers via Nostr</p>
+      <p className="text-[11px] text-white/45 mb-1">In a live wallet transfers arrive automatically — this is for CLI/batch scenarios without a persistent connection</p>
       <p className="text-[11px] text-red-500 mb-1">Not yet implemented in wallet — will show "Unknown Intent"</p>
-      <p className="text-[11px] text-yellow-600 mb-4">Requires wallet approval</p>
+      <p className="text-[11px] text-amber-400 mb-4">Requires wallet approval</p>
 
-      <button onClick={execute} disabled={loading}
-        className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
+      <Button onClick={execute} disabled={loading} className="w-full">
         {loading ? 'Receiving...' : 'Receive Tokens'}
-      </button>
+      </Button>
 
       <ResultDisplay result={raw} error={error} />
     </div>

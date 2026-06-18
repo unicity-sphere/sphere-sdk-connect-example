@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
+import { Button, Input, Textarea } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 
 interface Props {
@@ -30,25 +31,22 @@ export function DMPanel({ intent }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-semibold text-gray-900">Direct Message</h2>
-        <span className="text-[10px] font-mono text-orange-500 bg-orange-50 px-2 py-0.5 rounded">intent: dm</span>
+        <h2 className="text-lg font-semibold text-white">Direct Message</h2>
+        <span className="text-[10px] font-mono text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded">intent: dm</span>
       </div>
-      <p className="text-xs text-gray-400 mb-1">Send a direct message via Nostr</p>
-      <p className="text-[11px] text-yellow-600 mb-4">Requires wallet approval</p>
+      <p className="text-xs text-white/45 mb-1">Send a direct message via Nostr</p>
+      <p className="text-[11px] text-amber-400 mb-4">Requires wallet approval</p>
 
       <div className="space-y-3">
-        <input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
-          placeholder="To (@nametag)"
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" />
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)}
-          placeholder="Message" rows={3}
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 resize-none" />
-        <button onClick={execute} disabled={loading || !recipient || !message}
-          className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
+        <Input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
+          placeholder="To (@nametag)" />
+        <Textarea value={message} onChange={(e) => setMessage(e.target.value)}
+          placeholder="Message" rows={3} />
+        <Button onClick={execute} disabled={loading || !recipient || !message} className="w-full">
           {loading ? 'Sending...' : 'Send DM'}
-        </button>
+        </Button>
       </div>
 
       <ResultDisplay result={raw} error={error} />

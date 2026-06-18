@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { RPC_METHODS } from '@unicitylabs/sphere-sdk/connect';
+import { Button } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { CoinBadge } from '../ui/CoinBadge';
 import { formatFiat } from '../../lib/format';
@@ -40,34 +41,33 @@ export function BalancePanel({ query }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-semibold text-gray-900">Balance</h2>
+        <h2 className="text-lg font-semibold text-white">Balance</h2>
         <div className="flex gap-1">
           <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">getBalance</span>
           <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">getFiatBalance</span>
         </div>
       </div>
-      <p className="text-xs text-gray-400 mb-4">Coin balances + total fiat value</p>
+      <p className="text-xs text-white/45 mb-4">Coin balances + total fiat value</p>
 
-      <button onClick={execute} disabled={loading}
-        className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
+      <Button onClick={execute} disabled={loading} className="w-full">
         {loading ? 'Loading...' : 'Fetch Balance'}
-      </button>
+      </Button>
 
       {(balances.length > 0 || fiat !== null) && !error && (
         <div className="mt-4">
           {fiat !== null && (
-            <div className="text-center py-3 mb-3 bg-orange-50 rounded-xl">
-              <div className="text-2xl font-bold text-gray-900">{formatFiat(fiat)}</div>
-              <div className="text-xs text-gray-400">Total Portfolio Value</div>
+            <div className="text-center py-3 mb-3 bg-orange-500/10 rounded-xl">
+              <div className="text-2xl font-bold text-white">{formatFiat(fiat)}</div>
+              <div className="text-xs text-white/45">Total Portfolio Value</div>
             </div>
           )}
           <div className="space-y-2">
             {balances.map((b) => (
-              <div key={b.coinId} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-xl">
+              <div key={b.coinId} className="flex items-center justify-between py-2 px-3 bg-white/3 rounded-xl">
                 <CoinBadge symbol={b.symbol ?? b.coinId} size="sm" />
-                <span className="font-mono text-sm text-gray-900">{b.totalAmount}</span>
+                <span className="font-mono text-sm text-white">{b.totalAmount}</span>
               </div>
             ))}
           </div>

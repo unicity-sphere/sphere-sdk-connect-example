@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { RPC_METHODS } from '@unicitylabs/sphere-sdk/connect';
+import { Button } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 
 interface Props {
@@ -33,34 +34,33 @@ export function IdentityPanel({ query }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-semibold text-gray-900">Identity</h2>
+        <h2 className="text-lg font-semibold text-white">Identity</h2>
         <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">sphere_getIdentity</span>
       </div>
-      <p className="text-xs text-gray-400 mb-4">Read wallet identity (pubkey, addresses, nametag)</p>
+      <p className="text-xs text-white/45 mb-4">Read wallet identity (pubkey, addresses, nametag)</p>
 
-      <button onClick={execute} disabled={loading}
-        className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
+      <Button onClick={execute} disabled={loading} className="w-full">
         {loading ? 'Loading...' : 'Get Identity'}
-      </button>
+      </Button>
 
       {data && !error && (
         <div className="mt-4 space-y-3">
           {data.nametag && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400 w-24 shrink-0">Nametag</span>
-              <span className="font-mono text-sm text-orange-600">@{data.nametag}</span>
+              <span className="text-xs text-white/45 w-24 shrink-0">Nametag</span>
+              <span className="font-mono text-sm text-orange-400">@{data.nametag}</span>
             </div>
           )}
           <div className="flex items-start gap-2">
-            <span className="text-xs text-gray-400 w-24 shrink-0">Chain Pubkey</span>
-            <span className="font-mono text-xs text-gray-700 break-all">{data.chainPubkey}</span>
+            <span className="text-xs text-white/45 w-24 shrink-0">Chain Pubkey</span>
+            <span className="font-mono text-xs text-white/70 break-all">{data.chainPubkey}</span>
           </div>
           {data.directAddress && (
             <div className="flex items-start gap-2">
-              <span className="text-xs text-gray-400 w-24 shrink-0">Direct Addr</span>
-              <span className="font-mono text-xs text-gray-700 break-all">{data.directAddress}</span>
+              <span className="text-xs text-white/45 w-24 shrink-0">Direct Addr</span>
+              <span className="font-mono text-xs text-white/70 break-all">{data.directAddress}</span>
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
+import { Button, Input } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 
 interface Props {
@@ -43,22 +44,22 @@ export function MintPanel({ intent }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-semibold text-gray-900">Mint (L3)</h2>
-        <span className="text-[10px] font-mono text-orange-500 bg-orange-50 px-2 py-0.5 rounded">intent: mint</span>
+        <h2 className="text-lg font-semibold text-white">Mint (L3)</h2>
+        <span className="text-[10px] font-mono text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded">intent: mint</span>
       </div>
-      <p className="text-xs text-gray-400 mb-1">Self-mint a fungible token to the connected wallet</p>
-      <p className="text-[11px] text-yellow-600 mb-3">Requires wallet approval · works only where the network allows self-mint (testnet2)</p>
+      <p className="text-xs text-white/45 mb-1">Self-mint a fungible token to the connected wallet</p>
+      <p className="text-[11px] text-amber-400 mb-3">Requires wallet approval · works only where the network allows self-mint (testnet2)</p>
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <span className="text-[11px] text-gray-400 self-center mr-1">Presets:</span>
+        <span className="text-[11px] text-white/45 self-center mr-1">Presets:</span>
         {PRESETS.map((p) => (
           <button
             key={p.label}
             type="button"
             onClick={() => { setCoinId(p.coinId); setAmount(p.amount); }}
-            className="text-xs font-medium px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:border-orange-400 hover:text-orange-600 transition-colors cursor-pointer"
+            className="text-xs font-medium px-2.5 py-1 rounded-lg border border-white/8 text-white/55 hover:border-orange-400 hover:text-orange-400 transition-colors cursor-pointer"
           >
             {p.label}
           </button>
@@ -66,16 +67,14 @@ export function MintPanel({ intent }: Props) {
       </div>
 
       <div className="space-y-3">
-        <input type="text" value={coinId} onChange={(e) => setCoinId(e.target.value)}
+        <Input type="text" value={coinId} onChange={(e) => setCoinId(e.target.value)}
           placeholder="Coin ID (lowercase hex, e.g. 1111…)"
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" />
-        <input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
-          placeholder="Amount (smallest units)"
-          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" />
-        <button onClick={execute} disabled={loading || !coinId || !amount}
-          className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
+          className="font-mono" />
+        <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
+          placeholder="Amount (smallest units)" />
+        <Button onClick={execute} disabled={loading || !coinId || !amount} className="w-full">
           {loading ? 'Minting...' : 'Mint'}
-        </button>
+        </Button>
       </div>
 
       <ResultDisplay result={raw} error={error} />
