@@ -36,7 +36,7 @@ export function ResolvePanel({ query }: Props) {
     <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-semibold text-white">Resolve</h2>
-        <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">sphere_resolve</span>
+        <span className="text-[10px] font-mono text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded">sphere_resolve</span>
       </div>
       <p className="text-xs text-white/45 mb-4">Resolve @nametag, address, or pubkey to peer info</p>
 
@@ -45,7 +45,7 @@ export function ResolvePanel({ query }: Props) {
           placeholder="@nametag, DIRECT://..., pubkey"
           className="flex-1"
           onKeyDown={(e) => e.key === 'Enter' && execute()} />
-        <Button onClick={execute} disabled={loading || !identifier} variant="secondary">
+        <Button onClick={execute} disabled={loading || !identifier}>
           {loading ? '...' : 'Resolve'}
         </Button>
       </div>

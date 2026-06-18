@@ -37,7 +37,7 @@ export function TokensPanel({ query }: Props) {
     <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-semibold text-white">Tokens</h2>
-        <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">sphere_getTokens</span>
+        <span className="text-[10px] font-mono text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded">sphere_getTokens</span>
       </div>
       <p className="text-xs text-white/45 mb-4">Individual token list with status</p>
 
@@ -45,7 +45,7 @@ export function TokensPanel({ query }: Props) {
         <Input type="text" value={coinFilter} onChange={(e) => setCoinFilter(e.target.value)}
           placeholder="Filter by coinId (optional)"
           className="flex-1" />
-        <Button onClick={execute} disabled={loading} variant="secondary">
+        <Button onClick={execute} disabled={loading}>
           {loading ? '...' : 'Fetch'}
         </Button>
       </div>

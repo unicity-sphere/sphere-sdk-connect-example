@@ -37,7 +37,7 @@ export function IdentityPanel({ query }: Props) {
     <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-semibold text-white">Identity</h2>
-        <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">sphere_getIdentity</span>
+        <span className="text-[10px] font-mono text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded">sphere_getIdentity</span>
       </div>
       <p className="text-xs text-white/45 mb-4">Read wallet identity (pubkey, addresses, nametag)</p>
 

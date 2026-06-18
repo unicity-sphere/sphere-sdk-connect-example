@@ -45,8 +45,8 @@ export function BalancePanel({ query }: Props) {
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-semibold text-white">Balance</h2>
         <div className="flex gap-1">
-          <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">getBalance</span>
-          <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">getFiatBalance</span>
+          <span className="text-[10px] font-mono text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded">getBalance</span>
+          <span className="text-[10px] font-mono text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded">getFiatBalance</span>
         </div>
       </div>
       <p className="text-xs text-white/45 mb-4">Coin balances + total fiat value</p>

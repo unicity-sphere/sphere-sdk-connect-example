@@ -39,7 +39,7 @@ export function SignMessagePanel({ intent }: Props) {
 
       <div className="space-y-3">
         <Textarea value={message} onChange={(e) => setMessage(e.target.value)}
-          placeholder="Message to sign" rows={4} />
+          placeholder="Message to sign" rows={4} className="resize-none" />
         <Button onClick={execute} disabled={loading || !message} className="w-full">
           {loading ? 'Signing...' : 'Sign Message'}
         </Button>

@@ -77,7 +77,7 @@ export function HistoryPanel({ query }: Props) {
     <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-lg font-semibold text-white">History</h2>
-        <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">sphere_getHistory</span>
+        <span className="text-[10px] font-mono text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded">sphere_getHistory</span>
       </div>
       <p className="text-xs text-white/45 mb-4">Transaction history with paginated table view</p>
 
@@ -177,7 +177,7 @@ function renderCounterparty(e: HistoryEntry): ReactNode {
   if (e.type === 'SENT' && e.recipientNametag) return <span>to @{e.recipientNametag}</span>;
   if (e.type === 'RECEIVED' && e.senderNametag) return <span>from @{e.senderNametag}</span>;
   if (e.senderPubkey) return <span className="font-mono text-xs">{truncate(e.senderPubkey, 6, 4)}</span>;
-  return <span className="text-white/8">—</span>;
+  return <span className="text-white/30">—</span>;
 }
 
 // ── Pagination ───────────────────────────────────────────────────────────────

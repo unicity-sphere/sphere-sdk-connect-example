@@ -191,7 +191,7 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
 
           {/* New chat input */}
           <div className="p-2 border-b border-white/8">
-            <Input
+            <input
               type="text"
               value={newChatRecipient}
               onChange={(e) => setNewChatRecipient(e.target.value)}
@@ -202,7 +202,7 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
                 }
               }}
               placeholder="New chat (@nametag)"
-              className="w-full text-xs"
+              className="w-full px-2 py-1.5 text-xs rounded-lg bg-white/3 border border-white/8 text-white placeholder-white/30 focus:outline-none focus:border-orange-500"
             />
           </div>
 
@@ -334,6 +334,7 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
               <Button
                 onClick={sendMessage}
                 disabled={sending || !input.trim()}
+                className="shrink-0"
               >
                 {sending ? '...' : 'Send'}
               </Button>

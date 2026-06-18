@@ -43,7 +43,7 @@ export function DMPanel({ intent }: Props) {
         <Input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
           placeholder="To (@nametag)" />
         <Textarea value={message} onChange={(e) => setMessage(e.target.value)}
-          placeholder="Message" rows={3} />
+          placeholder="Message" rows={3} className="resize-none" />
         <Button onClick={execute} disabled={loading || !recipient || !message} className="w-full">
           {loading ? 'Sending...' : 'Send DM'}
         </Button>
