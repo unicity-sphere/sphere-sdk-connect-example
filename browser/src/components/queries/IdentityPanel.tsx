@@ -8,7 +8,6 @@ interface Props {
 
 interface IdentityData {
   chainPubkey: string;
-  l1Address: string;
   directAddress?: string;
   nametag?: string;
 }
@@ -57,10 +56,6 @@ export function IdentityPanel({ query }: Props) {
           <div className="flex items-start gap-2">
             <span className="text-xs text-gray-400 w-24 shrink-0">Chain Pubkey</span>
             <span className="font-mono text-xs text-gray-700 break-all">{data.chainPubkey}</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-xs text-gray-400 w-24 shrink-0">L1 Address</span>
-            <span className="font-mono text-xs text-gray-700 break-all">{data.l1Address}</span>
           </div>
           {data.directAddress && (
             <div className="flex items-start gap-2">

@@ -54,8 +54,3 @@ export function chatTime(timestamp: number): string {
     ' ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-const L1_DECIMALS = 8;
-
-export function formatL1(amount: string): string {
-  return formatAmount(amount, L1_DECIMALS) + ' ALPHA';
-}

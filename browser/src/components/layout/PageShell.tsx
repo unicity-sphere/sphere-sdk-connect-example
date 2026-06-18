@@ -18,13 +18,10 @@ const QUERIES: NavItem[] = [
   { key: 'balance', label: 'Balance' },
   { key: 'tokens', label: 'Tokens' },
   { key: 'history', label: 'History' },
-  { key: 'l1-balance', label: 'L1 Balance' },
-  { key: 'l1-history', label: 'L1 History' },
   { key: 'resolve', label: 'Resolve' },
 ];
 const INTENTS: NavItem[] = [
   { key: 'send', label: 'Send' },
-  { key: 'l1-send', label: 'L1 Send' },
   { key: 'dm', label: 'DM' },
   { key: 'payment-request', label: 'Pay Request' },
   { key: 'receive', label: 'Receive' },

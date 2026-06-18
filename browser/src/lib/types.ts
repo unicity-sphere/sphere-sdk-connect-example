@@ -30,25 +30,6 @@ export interface Token {
   updatedAt: number;
 }
 
-export interface L1Balance {
-  confirmed: string;
-  unconfirmed: string;
-  vested: string;
-  unvested: string;
-  total: string;
-}
-
-export interface L1Transaction {
-  txid: string;
-  type: string;
-  amount: string;
-  fee: string;
-  address?: string;
-  confirmations?: number;
-  timestamp: number;
-  blockHeight?: number;
-}
-
 export interface HistoryEntry {
   id?: string;
   type: string;
@@ -65,7 +46,6 @@ export interface HistoryEntry {
 export interface PeerInfo {
   nametag?: string;
   chainPubkey?: string;
-  l1Address?: string;
   directAddress?: string;
   transportPubkey?: string;
 }
@@ -96,8 +76,7 @@ export interface ConversationPage {
 }
 
 export type Section =
-  | 'identity' | 'assets' | 'balance' | 'tokens' | 'history'
-  | 'l1-balance' | 'l1-history' | 'resolve'
-  | 'send' | 'l1-send' | 'dm' | 'payment-request' | 'receive' | 'sign-message' | 'mint'
+  | 'identity' | 'assets' | 'balance' | 'tokens' | 'history' | 'resolve'
+  | 'send' | 'dm' | 'payment-request' | 'receive' | 'sign-message' | 'mint'
   | 'chat'
   | 'events';

@@ -41,7 +41,7 @@ export function ResolvePanel({ query }: Props) {
 
       <div className="flex gap-2 mb-3">
         <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-          placeholder="@nametag, DIRECT://..., alpha1..., pubkey"
+          placeholder="@nametag, DIRECT://..., pubkey"
           className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
           onKeyDown={(e) => e.key === 'Enter' && execute()} />
         <button onClick={execute} disabled={loading || !identifier}
@@ -57,9 +57,6 @@ export function ResolvePanel({ query }: Props) {
           )}
           {peer.chainPubkey && (
             <div className="flex gap-2"><span className="text-gray-400 w-28 shrink-0">Chain Pubkey</span><span className="font-mono text-xs text-gray-700 break-all">{peer.chainPubkey}</span></div>
-          )}
-          {peer.l1Address && (
-            <div className="flex gap-2"><span className="text-gray-400 w-28 shrink-0">L1 Address</span><span className="font-mono text-xs text-gray-700 break-all">{peer.l1Address}</span></div>
           )}
           {peer.directAddress && (
             <div className="flex gap-2"><span className="text-gray-400 w-28 shrink-0">Direct Addr</span><span className="font-mono text-xs text-gray-700 break-all">{peer.directAddress}</span></div>
