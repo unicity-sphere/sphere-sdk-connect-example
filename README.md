@@ -41,13 +41,13 @@ npm run client     # Terminal 2: CLI client
 
 ## Browser Example Features
 
-All 8 queries, 6 intents, and 9 events are demonstrated:
+All 7 queries, 6 intents, and 9 events are demonstrated:
 
 **Queries** (read-only):
-`sphere_getIdentity` · `sphere_getBalance` · `sphere_getAssets` · `sphere_getFiatBalance` · `sphere_getTokens` · `sphere_getHistory` · `sphere_l1GetBalance` · `sphere_l1GetHistory` · `sphere_resolve`
+`sphere_getIdentity` · `sphere_getBalance` · `sphere_getAssets` · `sphere_getFiatBalance` · `sphere_getTokens` · `sphere_getHistory` · `sphere_resolve`
 
 **Intents** (require wallet approval):
-`send` · `l1_send` · `dm` · `payment_request` · `receive` · `sign_message`
+`send` · `mint` · `dm` · `payment_request` · `receive` · `sign_message`
 
 **Events** (real-time push):
 `transfer:incoming` · `transfer:confirmed` · `transfer:failed` · `balance:updated` · `identity:updated` · `session:expired` · and more

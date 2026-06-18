@@ -132,15 +132,13 @@ const identity = await wallet.query('sphere_getIdentity');
 // Balances
 const balance = await wallet.query('sphere_getBalance');
 const fiat    = await wallet.query('sphere_getFiatBalance');
-const l1      = await wallet.query('sphere_l1GetBalance');
 
 // Assets & tokens
 const assets = await wallet.query('sphere_getAssets');
 const tokens = await wallet.query('sphere_getTokens', { coinId: 'USDC' });
 
 // History
-const history   = await wallet.query('sphere_getHistory');
-const l1History = await wallet.query('sphere_l1GetHistory', { limit: 20 });
+const history = await wallet.query('sphere_getHistory');
 
 // Resolve nametag / address
 const info = await wallet.query('sphere_resolve', { identifier: '@alice' });
@@ -153,16 +151,13 @@ const info = await wallet.query('sphere_resolve', { identifier: '@alice' });
 ```typescript
 // Send tokens
 await wallet.intent('send', {
-  recipient: '@alice',       // nametag, DIRECT:// address, or L1 address
+  recipient: '@alice',       // nametag or DIRECT:// address
   amount: 100,
   coinId: 'USDC',            // optional, default: native
 });
 
-// Send to L1
-await wallet.intent('l1_send', {
-  recipient: '0x...',
-  amount: 0.001,
-});
+// Self-mint a fungible token
+await wallet.intent('mint', { coinId: '<lowercase-hex>', amount: '1000000' });
 
 // Send DM
 await wallet.intent('dm', {

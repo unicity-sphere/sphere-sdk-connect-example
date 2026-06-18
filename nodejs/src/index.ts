@@ -98,18 +98,6 @@ async function main() {
             console.log('Identity:', JSON.stringify(identity, null, 2));
             break;
           }
-          case 'l1': {
-            const l1 = await client.query(RPC_METHODS.L1_GET_BALANCE);
-            console.log('L1 Balance:', JSON.stringify(l1, null, 2));
-            break;
-          }
-          case 'l1history': {
-            const limit = parts[1] ? parseInt(parts[1]) : undefined;
-            const params = limit ? { limit } : undefined;
-            const l1h = await client.query(RPC_METHODS.L1_GET_HISTORY, params);
-            console.log('L1 History:', JSON.stringify(l1h, null, 2));
-            break;
-          }
           case 'resolve': {
             const identifier = parts[1];
             if (!identifier) {
@@ -138,18 +126,18 @@ async function main() {
             console.log('Send result:', JSON.stringify(sendResult, null, 2));
             break;
           }
-          case 'l1send': {
-            const l1to = parts[1];
-            const l1amount = parts[2];
-            if (!l1to || !l1amount) {
-              console.log('Usage: l1send alpha1... amount');
+          case 'mint': {
+            const mintCoinId = parts[1];
+            const mintAmount = parts[2];
+            if (!mintCoinId || !mintAmount) {
+              console.log('Usage: mint <coinId> <amount>');
               break;
             }
-            const l1Result = await client.intent(INTENT_ACTIONS.L1_SEND, {
-              to: l1to,
-              amount: l1amount,
+            const mintResult = await client.intent(INTENT_ACTIONS.MINT, {
+              coinId: mintCoinId,
+              amount: mintAmount,
             });
-            console.log('L1 Send result:', JSON.stringify(l1Result, null, 2));
+            console.log('Mint result:', JSON.stringify(mintResult, null, 2));
             break;
           }
           case 'dm': {
@@ -257,17 +245,15 @@ Commands:
     fiat               - Get total fiat balance
     tokens             - Get individual token list
     history            - Get transaction history
-    l1                 - Get L1 ALPHA balance
-    l1history [limit]  - Get L1 transaction history
     resolve @tag       - Resolve nametag/address to peer info
 
   INTENTS (require wallet approval)
-    send @to amt [coin]          - Send L3 tokens
-    l1send alpha1... amount      - Send L1 ALPHA
-    dm @to message               - Send direct message
-    pay @to amt [coin] [message] - Send payment request
-    receive                      - Receive incoming tokens
-    sign message text            - Sign a message
+    send @to amt [coin]              - Send L3 tokens
+    mint <coinId> <amount>           - Self-mint a fungible token (coinId = lowercase hex)
+    dm @to message                   - Send direct message
+    pay @to amt [coin] [message]     - Send payment request
+    receive                          - Receive incoming tokens
+    sign message text                - Sign a message
 
   CHAT (require dm:read permission)
     conversations                - List DM conversations
