@@ -1,10 +1,10 @@
 const COLORS = [
-  'bg-orange-100 text-orange-700',
-  'bg-blue-100 text-blue-700',
-  'bg-green-100 text-green-700',
-  'bg-purple-100 text-purple-700',
-  'bg-pink-100 text-pink-700',
-  'bg-teal-100 text-teal-700',
+  'bg-orange-500/15 text-orange-400',
+  'bg-blue-500/15 text-blue-400',
+  'bg-green-500/15 text-green-400',
+  'bg-purple-500/15 text-purple-400',
+  'bg-pink-500/15 text-pink-400',
+  'bg-teal-500/15 text-teal-400',
 ];
 
 function colorFor(symbol: string): string {
@@ -31,7 +31,7 @@ export function CoinBadge({ symbol, iconUrl, size = 'md' }: CoinBadgeProps) {
           {symbol.charAt(0)}
         </span>
       )}
-      <span className="font-semibold text-gray-800">{symbol}</span>
+      <span className="font-semibold text-white">{symbol}</span>
     </span>
   );
 }

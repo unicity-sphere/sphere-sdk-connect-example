@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { RPC_METHODS, INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
+import { Button, Input } from '@unicitylabs/sphere-ui';
 import { chatTime, truncate } from '../../lib/format';
 import type { ConversationSummary, ConversationPage, DirectMessage } from '../../lib/types';
 
@@ -180,16 +181,16 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
       : null;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden" style={{ height: '600px' }}>
+    <div className="admin-card overflow-hidden" style={{ height: '600px' }}>
       <div className="flex h-full">
         {/* Conversation list */}
-        <div className="w-56 shrink-0 border-r border-gray-200 flex flex-col">
-          <div className="p-3 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-900">Chats</h2>
+        <div className="w-56 shrink-0 border-r border-white/8 flex flex-col">
+          <div className="p-3 border-b border-white/8">
+            <h2 className="text-sm font-semibold text-white">Chats</h2>
           </div>
 
           {/* New chat input */}
-          <div className="p-2 border-b border-gray-100">
+          <div className="p-2 border-b border-white/8">
             <input
               type="text"
               value={newChatRecipient}
@@ -201,27 +202,27 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
                 }
               }}
               placeholder="New chat (@nametag)"
-              className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-orange-500/30 focus:border-orange-500"
+              className="w-full px-2 py-1.5 text-xs rounded-lg bg-white/3 border border-white/8 text-white placeholder-white/30 focus:outline-none focus:border-orange-500"
             />
           </div>
 
           {/* Conversation list */}
           <div className="flex-1 overflow-y-auto">
             {conversations.length === 0 && (
-              <div className="p-4 text-xs text-gray-400 text-center">No conversations yet</div>
+              <div className="p-4 text-xs text-white/45 text-center">No conversations yet</div>
             )}
             {conversations.map((convo) => (
               <button
                 key={convo.peerPubkey}
                 onClick={() => selectPeer(convo.peerPubkey)}
-                className={`w-full text-left px-3 py-2.5 border-b border-gray-50 cursor-pointer transition-colors ${
+                className={`w-full text-left px-3 py-2.5 border-b border-white/8 cursor-pointer transition-colors ${
                   selectedPeer === convo.peerPubkey
-                    ? 'bg-orange-50'
-                    : 'hover:bg-gray-50'
+                    ? 'bg-orange-500/10'
+                    : 'hover:bg-white/3'
                 }`}
               >
                 <div className="flex items-center justify-between mb-0.5">
-                  <span className="text-sm font-medium text-gray-900 truncate">
+                  <span className="text-sm font-medium text-white truncate">
                     {(convo.peerNametag || getNametag(convo.peerPubkey)) ? `@${convo.peerNametag || getNametag(convo.peerPubkey)}` : truncate(convo.peerPubkey)}
                   </span>
                   {convo.unreadCount > 0 && (
@@ -231,10 +232,10 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
                   )}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500 truncate max-w-[120px]">
+                  <span className="text-xs text-white/45 truncate max-w-[120px]">
                     {convo.lastMessage.content}
                   </span>
-                  <span className="text-[10px] text-gray-400 shrink-0 ml-1">
+                  <span className="text-[10px] text-white/45 shrink-0 ml-1">
                     {chatTime(convo.lastMessage.timestamp)}
                   </span>
                 </div>
@@ -246,15 +247,15 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
         {/* Message thread */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Thread header */}
-          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
+          <div className="px-4 py-3 border-b border-white/8 bg-white/3">
             {peerDisplay ? (
-              <span className="text-sm font-semibold text-gray-900">{peerDisplay}</span>
+              <span className="text-sm font-semibold text-white">{peerDisplay}</span>
             ) : newChatRecipient ? (
-              <span className="text-sm font-semibold text-gray-900">
+              <span className="text-sm font-semibold text-white">
                 New chat with {newChatRecipient.startsWith('@') ? newChatRecipient : '@' + newChatRecipient}
               </span>
             ) : (
-              <span className="text-sm text-gray-400">Select a conversation or start a new chat</span>
+              <span className="text-sm text-white/45">Select a conversation or start a new chat</span>
             )}
           </div>
 
@@ -263,18 +264,18 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
             {hasMore && (
               <button
                 onClick={loadOlder}
-                className="w-full text-xs text-orange-500 hover:text-orange-600 py-1 cursor-pointer"
+                className="w-full text-xs text-orange-500 hover:text-orange-400 py-1 cursor-pointer"
               >
                 Load older messages
               </button>
             )}
 
             {loading && messages.length === 0 && (
-              <div className="text-xs text-gray-400 text-center py-8">Loading messages...</div>
+              <div className="text-xs text-white/45 text-center py-8">Loading messages...</div>
             )}
 
             {!selectedPeer && !newChatRecipient && messages.length === 0 && !loading && (
-              <div className="text-xs text-gray-400 text-center py-8">
+              <div className="text-xs text-white/45 text-center py-8">
                 Select a conversation from the list or type a @nametag to start a new chat
               </div>
             )}
@@ -287,16 +288,16 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
                     className={`max-w-[75%] rounded-2xl px-3.5 py-2 ${
                       isOwn
                         ? 'bg-orange-500 text-white rounded-br-md'
-                        : 'bg-gray-100 text-gray-900 rounded-bl-md'
+                        : 'bg-white/6 text-white rounded-bl-md'
                     }`}
                   >
                     {!isOwn && msg.senderNametag && (
-                      <div className="text-[10px] font-medium text-orange-600 mb-0.5">
+                      <div className="text-[10px] font-medium text-orange-400 mb-0.5">
                         @{msg.senderNametag}
                       </div>
                     )}
                     <div className="text-sm break-words">{msg.content}</div>
-                    <div className={`text-[10px] mt-0.5 ${isOwn ? 'text-orange-200' : 'text-gray-400'}`}>
+                    <div className={`text-[10px] mt-0.5 ${isOwn ? 'text-orange-200' : 'text-white/45'}`}>
                       {chatTime(msg.timestamp)}
                     </div>
                   </div>
@@ -308,15 +309,15 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
 
           {/* Error */}
           {error && (
-            <div className="px-4 py-1.5 text-xs text-red-500 bg-red-50 border-t border-red-100">
+            <div className="px-4 py-1.5 text-xs text-red-500 bg-red-500/10 border-t border-red-500/20">
               {error}
             </div>
           )}
 
           {/* Input */}
           {(selectedPeer || newChatRecipient) && (
-            <div className="px-3 py-2.5 border-t border-gray-200 flex gap-2">
-              <input
+            <div className="px-3 py-2.5 border-t border-white/8 flex gap-2">
+              <Input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -328,15 +329,15 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
                 }}
                 placeholder="Type a message..."
                 disabled={sending}
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 disabled:bg-gray-50"
+                className="flex-1"
               />
-              <button
+              <Button
                 onClick={sendMessage}
                 disabled={sending || !input.trim()}
-                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed shrink-0"
+                className="shrink-0"
               >
                 {sending ? '...' : 'Send'}
-              </button>
+              </Button>
             </div>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { RPC_METHODS } from '@unicitylabs/sphere-sdk/connect';
+import { Button, Select } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { StatusBadge } from '../ui/StatusBadge';
 import { CoinBadge } from '../ui/CoinBadge';
@@ -73,17 +74,16 @@ export function HistoryPanel({ query }: Props) {
   const pageEntries = entries.slice(safePage * pageSize, safePage * pageSize + pageSize);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div className="admin-card p-5">
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-lg font-semibold text-gray-900">History</h2>
-        <span className="text-[10px] font-mono text-blue-500 bg-blue-50 px-2 py-0.5 rounded">sphere_getHistory</span>
+        <h2 className="text-lg font-semibold text-white">History</h2>
+        <span className="text-[10px] font-mono text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded">sphere_getHistory</span>
       </div>
-      <p className="text-xs text-gray-400 mb-4">Transaction history with paginated table view</p>
+      <p className="text-xs text-white/45 mb-4">Transaction history with paginated table view</p>
 
-      <button onClick={execute} disabled={loading}
-        className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-medium rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
+      <Button onClick={execute} disabled={loading} className="w-full">
         {loading ? 'Loading...' : 'Fetch History'}
-      </button>
+      </Button>
 
       {entries.length > 0 && !error && (
         <>
@@ -110,10 +110,10 @@ export function HistoryPanel({ query }: Props) {
 function SummaryCards({ stats }: { stats: { total: number; sent: number; received: number; other: number } }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-      <StatCard label="Total" value={stats.total} accent="bg-gray-50 text-gray-900" />
-      <StatCard label="Sent" value={stats.sent} accent="bg-orange-50 text-orange-700" />
-      <StatCard label="Received" value={stats.received} accent="bg-green-50 text-green-700" />
-      <StatCard label="Other" value={stats.other} accent="bg-gray-50 text-gray-500" />
+      <StatCard label="Total" value={stats.total} accent="bg-white/3 text-white" />
+      <StatCard label="Sent" value={stats.sent} accent="bg-orange-500/10 text-orange-400" />
+      <StatCard label="Received" value={stats.received} accent="bg-green-500/15 text-green-400" />
+      <StatCard label="Other" value={stats.other} accent="bg-white/3 text-white/45" />
     </div>
   );
 }
@@ -131,9 +131,9 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
 
 function HistoryTable({ entries, coinMap }: { entries: HistoryEntry[]; coinMap: Record<string, CoinMeta> }) {
   return (
-    <div className="mt-4 overflow-x-auto rounded-xl border border-gray-100">
+    <div className="mt-4 overflow-x-auto rounded-xl border border-white/8">
       <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+        <thead className="bg-white/3 text-xs uppercase tracking-wide text-white/45">
           <tr>
             <th className="text-left px-3 py-2 font-medium">Type</th>
             <th className="text-right px-3 py-2 font-medium">Amount</th>
@@ -142,26 +142,26 @@ function HistoryTable({ entries, coinMap }: { entries: HistoryEntry[]; coinMap: 
             <th className="text-right px-3 py-2 font-medium">Time</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-white/8">
           {entries.map((e, i) => {
             const meta = coinMap[e.coinId];
             const decimals = meta?.decimals ?? 0;
             const symbol = meta?.symbol ?? e.symbol ?? e.coinId;
             const iconUrl = meta?.iconUrl;
             const sign = e.type === 'SENT' ? '-' : e.type === 'RECEIVED' ? '+' : '';
-            const amountColor = e.type === 'SENT' ? 'text-orange-700' : e.type === 'RECEIVED' ? 'text-green-700' : 'text-gray-700';
+            const amountColor = e.type === 'SENT' ? 'text-orange-400' : e.type === 'RECEIVED' ? 'text-green-400' : 'text-white/70';
 
             return (
-              <tr key={e.id ?? i} className="hover:bg-gray-50">
+              <tr key={e.id ?? i} className="hover:bg-white/3">
                 <td className="px-3 py-2"><StatusBadge status={e.type} /></td>
                 <td className={`px-3 py-2 text-right font-mono ${amountColor}`}>
                   {sign}{formatAmount(e.amount, decimals)}
                 </td>
                 <td className="px-3 py-2"><CoinBadge symbol={symbol} iconUrl={iconUrl} size="sm" /></td>
-                <td className="px-3 py-2 text-gray-600">
+                <td className="px-3 py-2 text-white/55">
                   {renderCounterparty(e)}
                 </td>
-                <td className="px-3 py-2 text-right text-xs text-gray-400 whitespace-nowrap">
+                <td className="px-3 py-2 text-right text-xs text-white/45 whitespace-nowrap">
                   {relativeTime(e.timestamp)}
                 </td>
               </tr>
@@ -177,7 +177,7 @@ function renderCounterparty(e: HistoryEntry): ReactNode {
   if (e.type === 'SENT' && e.recipientNametag) return <span>to @{e.recipientNametag}</span>;
   if (e.type === 'RECEIVED' && e.senderNametag) return <span>from @{e.senderNametag}</span>;
   if (e.senderPubkey) return <span className="font-mono text-xs">{truncate(e.senderPubkey, 6, 4)}</span>;
-  return <span className="text-gray-300">—</span>;
+  return <span className="text-white/30">—</span>;
 }
 
 // ── Pagination ───────────────────────────────────────────────────────────────
@@ -196,18 +196,17 @@ function Pagination({
   const end = Math.min((page + 1) * pageSize, totalCount);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-gray-500">
+    <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-white/45">
       <div className="flex items-center gap-2">
         <span>Rows per page:</span>
-        <select
+        <Select
           value={pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
-          className="border border-gray-200 rounded-md px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/30"
         >
           {PAGE_SIZE_OPTIONS.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="flex items-center gap-3">
@@ -216,7 +215,7 @@ function Pagination({
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 0}
-            className="px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="px-2 py-1 rounded-md border border-white/8 hover:bg-white/3 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             ← Prev
           </button>
@@ -224,7 +223,7 @@ function Pagination({
           <button
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages - 1}
-            className="px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="px-2 py-1 rounded-md border border-white/8 hover:bg-white/3 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             Next →
           </button>
