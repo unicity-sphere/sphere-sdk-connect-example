@@ -15,7 +15,6 @@ const mockSphere = {
   networkId: 4,
   identity: {
     chainPubkey: '02abc123def456789012345678901234567890123456789012345678901234567890',
-    l1Address: 'alpha1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
     directAddress: 'DIRECT://abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
     nametag: 'alice',
   },
@@ -90,37 +89,10 @@ const mockSphere = {
         timestamp: now - 86400000,
       },
     ],
-    l1: {
-      getBalance: async () => ({
-        confirmed: '100000',
-        unconfirmed: '5000',
-        vested: '80000',
-        unvested: '20000',
-        total: '105000',
-      }),
-      getHistory: async (limit?: number) => {
-        const txs = [
-          {
-            txid: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
-            type: 'receive', amount: '50000', fee: '226',
-            address: 'alpha1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
-            confirmations: 144, timestamp: now - 86400000, blockHeight: 850000,
-          },
-          {
-            txid: 'f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5',
-            type: 'send', amount: '10000', fee: '340',
-            address: 'alpha1qrp33g0q5b5698ahp5jnf5yzjkcd2fdjl3lgdy4',
-            confirmations: 6, timestamp: now - 3600000, blockHeight: 850100,
-          },
-        ];
-        return limit ? txs.slice(0, limit) : txs;
-      },
-    },
   },
   resolve: async (identifier: string) => ({
     nametag: identifier.replace('@', ''),
     chainPubkey: '03fedcba09876543210fedcba09876543210fedcba09876543210fedcba0987654321',
-    l1Address: 'alpha1qrp33g0q5b5698ahp5jnf5yzjkcd2fdjl3lgdy4',
     directAddress: 'DIRECT://fedcba09876543210fedcba09876543210fedcba09876543210fedcba0987654321',
     transportPubkey: 'aa00bb11cc22dd33ee44ff5566778899aabbccddeeff00112233445566778899',
   }),
@@ -241,8 +213,14 @@ async function main() {
               tokenTransfers: [{ sourceTokenId: 'tok-abc123def456', method: 'direct' }],
             },
           };
-        case 'l1_send':
-          return { result: { txid: `l1tx-${Date.now()}`, success: true, fee: '340' } };
+        case 'mint':
+          return {
+            result: {
+              tokenId: 'aa'.repeat(32),
+              coinId: params.coinId,
+              amount: params.amount,
+            },
+          };
         case 'dm':
           return { result: { sent: true, messageId: `msg-${Date.now()}`, timestamp: Date.now() } };
         case 'payment_request':

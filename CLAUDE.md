@@ -13,8 +13,8 @@ sphere-sdk-connect-example/
 │   │   ├── hooks/
 │   │   │   └── useWalletConnect.ts   # Core hook: popup/iframe connect logic
 │   │   ├── lib/
-│   │   │   ├── types.ts             # Local TS interfaces (Asset, Token, L1Balance, etc.)
-│   │   │   └── format.ts           # Amount formatting (decimals, fiat, L1, truncate, relativeTime)
+│   │   │   ├── types.ts             # Local TS interfaces (Asset, Token, etc.)
+│   │   │   └── format.ts           # Amount formatting (decimals, fiat, truncate, relativeTime)
 │   │   └── components/
 │   │       ├── ConnectButton.tsx     # "Connect Wallet" button with loading state
 │   │       ├── layout/
@@ -25,18 +25,16 @@ sphere-sdk-connect-example/
 │   │       │   ├── CoinBadge.tsx    # Token icon (img or colored letter) + symbol
 │   │       │   ├── CoinSelect.tsx   # Dropdown token selector (fetches assets from wallet)
 │   │       │   └── StatusBadge.tsx  # Colored status badges (confirmed/pending/failed)
-│   │       ├── queries/             # 8 query panels (read-only operations)
+│   │       ├── queries/             # 7 query panels (read-only operations)
 │   │       │   ├── IdentityPanel.tsx     # sphere_getIdentity
 │   │       │   ├── AssetsPanel.tsx       # sphere_getAssets (table with icons, fiat, 24h)
 │   │       │   ├── BalancePanel.tsx      # sphere_getBalance + sphere_getFiatBalance
 │   │       │   ├── TokensPanel.tsx       # sphere_getTokens (with status badges)
 │   │       │   ├── HistoryPanel.tsx      # sphere_getHistory (with type badges)
-│   │       │   ├── L1BalancePanel.tsx    # sphere_l1GetBalance (vested/unvested breakdown)
-│   │       │   ├── L1HistoryPanel.tsx    # sphere_l1GetHistory (with limit param)
 │   │       │   └── ResolvePanel.tsx      # sphere_resolve (identifier input)
 │   │       ├── intents/             # 7 intent panels (require wallet approval)
 │   │       │   ├── SendPanel.tsx         # send (recipient, amount, coin selector, memo)
-│   │       │   ├── L1SendPanel.tsx       # l1_send (shows L1 balance, recipient, amount)
+│   │       │   ├── MintPanel.tsx         # mint (coinId, amount)
 │   │       │   ├── DMPanel.tsx           # dm (recipient, message)
 │   │       │   ├── PaymentRequestPanel.tsx # payment_request (recipient, amount, coin, message)
 │   │       │   ├── ReceivePanel.tsx      # receive (button only, no params)
@@ -82,8 +80,8 @@ npm run client     # Connects to ws://localhost:8765
 ```
 
 CLI commands:
-- **Queries:** `identity`, `balance`, `assets`, `fiat`, `tokens`, `history`, `l1`, `l1history [limit]`, `resolve @tag`
-- **Intents:** `send @to amt [coin]`, `l1send alpha1... amount`, `dm @to message`, `pay @to amt [coin] [message]`, `receive`, `sign message text`
+- **Queries:** `identity`, `balance`, `assets`, `fiat`, `tokens`, `history`, `resolve @tag`
+- **Intents:** `send @to amt [coin]`, `mint <coinId> <amount>`, `dm @to message`, `pay @to amt [coin] [message]`, `receive`, `sign message text`
 - **Other:** `disconnect`, `help`
 
 ## Dependencies
@@ -153,8 +151,6 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 | `sphere_getFiatBalance` | USD value | `balance:read` |
 | `sphere_getTokens` | Token list | `tokens:read` |
 | `sphere_getHistory` | Transaction history | `history:read` |
-| `sphere_l1GetBalance` | L1 balance | `l1:read` |
-| `sphere_l1GetHistory` | L1 tx history | `l1:read` |
 | `sphere_resolve` | Resolve nametag/address | `resolve:peer` |
 | `sphere_subscribe` | Subscribe to events | `events:subscribe` |
 | `sphere_unsubscribe` | Unsubscribe | `events:subscribe` |
@@ -163,7 +159,7 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 | Intent Action | Description | Required Permission |
 |--------------|-------------|---------------------|
 | `send` | L3 token transfer | `transfer:request` |
-| `l1_send` | L1 transaction | `l1:transfer` |
+| `mint` | Self-mint a fungible token | `transfer:request` |
 | `dm` | Direct message | `dm:request` |
 | `payment_request` | Payment request | `payment:request` |
 | `receive` | Receive incoming tokens | `transfer:request` |
@@ -229,12 +225,10 @@ Sidebar + content area design:
 │  Balance │                                      │
 │  Tokens  │                                      │
 │  History │                                      │
-│  L1 Bal  │                                      │
-│  L1 Hist │                                      │
 │  Resolve │                                      │
 │ INTENTS  │                                      │
 │  Send    │                                      │
-│  L1 Send │                                      │
+│  Mint    │                                      │
 │  DM      │                                      │
 │  Pay Req │                                      │
 │  Receive │                                      │
@@ -251,7 +245,6 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 - `CoinBadge` — renders token icon (img from `iconUrl` or colored letter fallback) + symbol
 - `CoinSelect` — dropdown that fetches assets from wallet via `GET_ASSETS` query, shows icon + symbol + balance per coin
 - `formatAmount(raw, decimals)` — converts raw amounts using token's decimal places
-- `formatL1(amount)` — formats L1 ALPHA amounts (8 decimal places)
 
 ### useWalletConnect Hook (`browser/src/hooks/useWalletConnect.ts`)
 
@@ -267,8 +260,8 @@ Central state management for wallet connection:
 Testing-only server that emulates wallet behavior:
 - Creates `ConnectHost` with mock `SphereInstance`
 - Auto-approves all connection requests with full permissions
-- Auto-approves all intents with action-specific success responses
-- Returns rich mock data: identity, assets (UCT + USDU with fiat/24h change), tokens (with statuses), history, L1 balance (with vested/unvested), L1 history
+- Auto-approves all intents with action-specific success responses (send, mint, dm, payment_request, receive, sign_message)
+- Returns rich mock data: identity, assets (UCT + USDU with fiat/24h change), tokens (with statuses), history
 
 ### Event Subscriptions
 
