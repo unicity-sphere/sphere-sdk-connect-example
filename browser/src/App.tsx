@@ -10,17 +10,15 @@ import { AssetsPanel } from './components/queries/AssetsPanel';
 import { BalancePanel } from './components/queries/BalancePanel';
 import { TokensPanel } from './components/queries/TokensPanel';
 import { HistoryPanel } from './components/queries/HistoryPanel';
-import { L1BalancePanel } from './components/queries/L1BalancePanel';
-import { L1HistoryPanel } from './components/queries/L1HistoryPanel';
 import { ResolvePanel } from './components/queries/ResolvePanel';
 
 // Intent panels
 import { SendPanel } from './components/intents/SendPanel';
-import { L1SendPanel } from './components/intents/L1SendPanel';
 import { DMPanel } from './components/intents/DMPanel';
 import { PaymentRequestPanel } from './components/intents/PaymentRequestPanel';
 import { ReceivePanel } from './components/intents/ReceivePanel';
 import { SignMessagePanel } from './components/intents/SignMessagePanel';
+import { MintPanel } from './components/intents/MintPanel';
 
 // Chat
 import { ChatPanel } from './components/chat/ChatPanel';
@@ -69,15 +67,13 @@ export default function App() {
     'balance': <BalancePanel query={query} />,
     'tokens': <TokensPanel query={query} />,
     'history': <HistoryPanel query={query} />,
-    'l1-balance': <L1BalancePanel query={query} />,
-    'l1-history': <L1HistoryPanel query={query} />,
     'resolve': <ResolvePanel query={query} />,
     'send': <SendPanel intent={intent} query={query} />,
-    'l1-send': <L1SendPanel intent={intent} query={query} />,
     'dm': <DMPanel intent={intent} />,
     'payment-request': <PaymentRequestPanel intent={intent} query={query} />,
     'receive': <ReceivePanel intent={intent} />,
     'sign-message': <SignMessagePanel intent={intent} />,
+    'mint': <MintPanel intent={intent} />,
     'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} />,
     'events': <EventLogPanel on={on} />,
   };
