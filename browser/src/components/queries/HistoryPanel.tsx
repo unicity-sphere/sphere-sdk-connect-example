@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { RPC_METHODS } from '@unicitylabs/sphere-sdk/connect';
-import { Button, Select } from '@unicitylabs/sphere-ui';
+import { Button, CustomSelect } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { StatusBadge } from '../ui/StatusBadge';
 import { CoinBadge } from '../ui/CoinBadge';
@@ -199,14 +199,13 @@ function Pagination({
     <div className="flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-white/45">
       <div className="flex items-center gap-2">
         <span>Rows per page:</span>
-        <Select
-          value={pageSize}
-          onChange={(e) => onPageSizeChange(Number(e.target.value))}
-        >
-          {PAGE_SIZE_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </Select>
+        <CustomSelect
+          value={String(pageSize)}
+          onChange={(v) => onPageSizeChange(Number(v))}
+          size="sm"
+          className="w-20"
+          options={PAGE_SIZE_OPTIONS.map((s) => ({ value: String(s), label: String(s) }))}
+        />
       </div>
 
       <div className="flex items-center gap-3">

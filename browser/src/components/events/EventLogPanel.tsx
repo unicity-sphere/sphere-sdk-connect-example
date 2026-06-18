@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Button, Select } from '@unicitylabs/sphere-ui';
+import { Button, CustomSelect } from '@unicitylabs/sphere-ui';
 
 interface LogEntry {
   id: number;
@@ -134,13 +134,15 @@ export function EventLogPanel({ on }: Props) {
       <p className="text-xs text-white/45 mb-4">Real-time wallet events ({ALL_EVENTS.length} subscribed)</p>
 
       <div className="flex items-center gap-2 mb-3">
-        <Select value={filter} onChange={(e) => setFilter(e.target.value)}
-          className="flex-1">
-          <option value="all">All events</option>
-          {ALL_EVENTS.map((ev) => (
-            <option key={ev} value={ev}>{ev}</option>
-          ))}
-        </Select>
+        <CustomSelect
+          value={filter}
+          onChange={setFilter}
+          className="flex-1"
+          options={[
+            { value: 'all', label: 'All events' },
+            ...ALL_EVENTS.map((ev) => ({ value: ev, label: ev })),
+          ]}
+        />
         {entries.length > 0 && (
           <Button onClick={() => setEntries([])} variant="secondary">
             Clear
