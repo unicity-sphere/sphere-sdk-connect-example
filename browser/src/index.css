@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* Scan sphere-ui's built classes (dark:, hover:, badge-*, admin-*, btn-*) */
+@source "../node_modules/@unicitylabs/sphere-ui/dist";
+
+/* sphere-ui uses the `dark` class to gate its dark: utility variants */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Dark page background using sphere-ui's brand token */
+html, body, #root {
+  min-height: 100%;
+  background: var(--bg-root);
+  color: var(--text-primary);
+}
