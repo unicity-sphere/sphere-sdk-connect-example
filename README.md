@@ -41,7 +41,7 @@ npm run client     # Terminal 2: CLI client
 
 ## Browser Example Features
 
-All 7 queries, 6 intents, and 9 events are demonstrated:
+All queries, intents, and events are demonstrated:
 
 **Queries** (read-only):
 `sphere_getIdentity` · `sphere_getBalance` · `sphere_getAssets` · `sphere_getFiatBalance` · `sphere_getTokens` · `sphere_getHistory` · `sphere_resolve`
@@ -50,7 +50,7 @@ All 7 queries, 6 intents, and 9 events are demonstrated:
 `send` · `mint` · `dm` · `payment_request` · `receive` · `sign_message`
 
 **Events** (real-time push):
-`transfer:incoming` · `transfer:confirmed` · `transfer:failed` · `balance:updated` · `identity:updated` · `session:expired` · and more
+auto-pushed `wallet:locked` · `identity:changed` · subscribable `transfer:incoming` · `transfer:confirmed` · `transfer:failed` · and more
 
 ## 3-Priority Transport Selection
 
@@ -83,12 +83,10 @@ try {
 
 ## Dependencies
 
-Both subprojects use a local sphere-sdk reference:
+Both subprojects pin a published sphere-sdk version:
 ```json
-"@unicitylabs/sphere-sdk": "file:../../sphere-sdk"
+"@unicitylabs/sphere-sdk": "0.10.2"
 ```
-
-Rebuild SDK before testing: `cd ../../sphere-sdk && npm run build`
 
 ## Documentation
 

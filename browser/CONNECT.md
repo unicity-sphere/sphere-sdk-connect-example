@@ -104,7 +104,7 @@ if (!wallet.isConnected) {
 
 // Connected
 const balance = await wallet.query('sphere_getBalance');
-await wallet.intent('send', { recipient: '@alice', amount: 100 });
+await wallet.intent('send', { to: '@alice', amount: '10', coinId: '<lowercase 64-hex coin id>' });
 ```
 
 ### State shape
@@ -135,7 +135,7 @@ const fiat    = await wallet.query('sphere_getFiatBalance');
 
 // Assets & tokens
 const assets = await wallet.query('sphere_getAssets');
-const tokens = await wallet.query('sphere_getTokens', { coinId: 'USDC' });
+const tokens = await wallet.query('sphere_getTokens', { coinId: '<lowercase 64-hex coin id>' });
 
 // History
 const history = await wallet.query('sphere_getHistory');
@@ -151,9 +151,9 @@ const info = await wallet.query('sphere_resolve', { identifier: '@alice' });
 ```typescript
 // Send tokens
 await wallet.intent('send', {
-  recipient: '@alice',       // nametag or DIRECT:// address
-  amount: 100,
-  coinId: 'USDC',            // optional, default: native
+  to: '@alice',                              // nametag or DIRECT:// address
+  amount: '10',                              // string amount
+  coinId: '<lowercase 64-hex coin id>',      // optional, default: native
 });
 
 // Self-mint a fungible token
@@ -161,25 +161,28 @@ await wallet.intent('mint', { coinId: '<lowercase-hex>', amount: '1000000' });
 
 // Send DM
 await wallet.intent('dm', {
-  recipient: '@alice',
-  content: 'Hello!',
+  to: '@alice',
+  message: 'Hello!',
 });
 
 // Create payment request (QR code shown to sender)
 await wallet.intent('payment_request', {
-  amount: 50,
-  coinId: 'USDC',
-  description: 'Coffee',
+  to: '@bob',
+  amount: '5',
+  coinId: '<lowercase 64-hex coin id>',
+  message: 'Coffee',
 });
 
 // Show receive address
-await wallet.intent('receive', { coinId: 'USDC' });
+await wallet.intent('receive', {});
 
 // Sign a message
 const { signature } = await wallet.intent('sign_message', {
   message: 'I agree to the terms',
 });
 ```
+
+> **Note:** Invoice / accounting intents are experimental and are **not** supported by the Sphere wallet. Do not use them.
 
 ---
 
@@ -196,7 +199,7 @@ const unsub = wallet.on('transfer:incoming', (data) => {
 return () => unsub();
 ```
 
-Available events: `transfer:incoming`, `transfer:confirmed`, `transfer:failed`, `balance:updated`, `identity:updated`, `session:expired`.
+Available events: auto-pushed `wallet:locked` and `identity:changed`, plus subscribable `transfer:incoming`, `transfer:confirmed`, `transfer:failed`. The full set is larger — see EventLogPanel for the complete list.
 
 ### Auto-pushed wallet events
 
@@ -356,8 +359,10 @@ try {
 ```bash
 cd sphere-sdk-connect-example/browser
 npm install
-npm run dev       # starts on https://localhost:5173 (if certs available)
+npm run dev       # starts on http://localhost:5174
 ```
+
+The Sphere wallet, when run locally, listens on `http://localhost:5173`.
 
 ### Environment Variables
 
@@ -365,19 +370,7 @@ Set `VITE_WALLET_URL` in `.env.development` or `.env.local` to point to your wal
 
 ```bash
 VITE_WALLET_URL=https://sphere.unicity.network   # production (default)
-VITE_WALLET_URL=https://localhost:5174            # local development
+VITE_WALLET_URL=http://localhost:5173             # local development (Sphere wallet)
 ```
 
-### HTTPS for development
-
-The Vite config automatically enables HTTPS if SSL certificates exist at `../../sphere/.certs/`. Generate self-signed certs for local HTTPS:
-
-```bash
-mkdir -p sphere/.certs
-openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
-  -keyout sphere/.certs/privkey.pem -out sphere/.certs/fullchain.pem \
-  -days 365 -nodes -subj "/CN=localhost" \
-  -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
-```
-
-Both the example app and Sphere wallet will use these certs automatically.
+The example dev server runs on port **5174** (see `vite.config.ts`); the Sphere wallet runs on port **5173**. The Vite config only sets `server: { port: 5174 }` — it does not enable HTTPS or load any certificates, so the dev server is served over plain `http`.
