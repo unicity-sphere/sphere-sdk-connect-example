@@ -3,6 +3,7 @@ import { INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
 import { Button, Input } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { CoinSelect } from '../ui/CoinSelect';
+import { parseAmount, safeParseAmount } from '../../lib/format';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -13,6 +14,7 @@ export function PaymentRequestPanel({ intent, query }: Props) {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [coinId, setCoinId] = useState('');
+  const [decimals, setDecimals] = useState(0);
   const [message, setMessage] = useState('');
   const [raw, setRaw] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +27,9 @@ export function PaymentRequestPanel({ intent, query }: Props) {
     setRaw(null);
     try {
       const to = recipient.startsWith('@') ? recipient : '@' + recipient;
-      const params: Record<string, unknown> = { to, amount, coinId };
+      // Connect `payment_request` takes the amount in BASE UNITS — convert the
+      // human input here, at the dApp's edge (string-based, exact).
+      const params: Record<string, unknown> = { to, amount: parseAmount(amount, decimals), coinId };
       if (message) params.message = message;
       const result = await intent(INTENT_ACTIONS.PAYMENT_REQUEST, params);
       setRaw(result);
@@ -52,8 +56,11 @@ export function PaymentRequestPanel({ intent, query }: Props) {
           <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount"
             className="flex-1" />
-          <CoinSelect value={coinId} onChange={setCoinId} query={query} />
+          <CoinSelect value={coinId} onChange={(c, d) => { setCoinId(c); setDecimals(d); }} query={query} />
         </div>
+        {amount && safeParseAmount(amount, decimals) && (
+          <p className="text-[10px] font-mono text-white/30">= {safeParseAmount(amount, decimals)} base units (sent to wallet)</p>
+        )}
         <Input type="text" value={message} onChange={(e) => setMessage(e.target.value)}
           placeholder="Message (optional)" />
         <Button onClick={execute} disabled={loading || !recipient || !amount || !coinId} className="w-full">

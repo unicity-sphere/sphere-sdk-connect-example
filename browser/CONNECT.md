@@ -104,7 +104,8 @@ if (!wallet.isConnected) {
 
 // Connected
 const balance = await wallet.query('sphere_getBalance');
-await wallet.intent('send', { to: '@alice', amount: '10', coinId: '<lowercase 64-hex coin id>' });
+// amount is in BASE UNITS (smallest unit) — e.g. 1 of an 18-decimals coin = '1000000000000000000'
+await wallet.intent('send', { to: '@alice', amount: '1000000000000000000', coinId: '<lowercase 64-hex coin id>' });
 ```
 
 ### State shape
@@ -149,14 +150,16 @@ const info = await wallet.query('sphere_resolve', { identifier: '@alice' });
 ## Intents (require user confirmation in wallet)
 
 ```typescript
-// Send tokens
+// Send tokens. amount is in BASE UNITS (smallest indivisible unit), as a string —
+// the same convention as `mint` and the SDK. Convert at the dApp edge, e.g.
+// the SDK's parseTokenAmount('1.5', decimals) (or ethers/viem parseUnits).
 await wallet.intent('send', {
   to: '@alice',                              // nametag or DIRECT:// address
-  amount: '10',                              // string amount
-  coinId: '<lowercase 64-hex coin id>',      // optional, default: native
+  amount: '1500000000000000000',             // base units (= 1.5 of an 18-decimals coin)
+  coinId: '<lowercase 64-hex coin id>',      // required, lowercase 64-hex
 });
 
-// Self-mint a fungible token
+// Self-mint a fungible token (amount in base units)
 await wallet.intent('mint', { coinId: '<lowercase-hex>', amount: '1000000' });
 
 // Send DM
@@ -165,10 +168,10 @@ await wallet.intent('dm', {
   message: 'Hello!',
 });
 
-// Create payment request (QR code shown to sender)
+// Create payment request (amount in base units, like `send`)
 await wallet.intent('payment_request', {
   to: '@bob',
-  amount: '5',
+  amount: '5000000000000000000',             // base units
   coinId: '<lowercase 64-hex coin id>',
   message: 'Coffee',
 });

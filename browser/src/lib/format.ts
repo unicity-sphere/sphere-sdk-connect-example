@@ -7,6 +7,34 @@ export function formatAmount(raw: string, decimals: number): string {
   return fracPart ? `${intFormatted}.${fracPart}` : intFormatted;
 }
 
+/**
+ * Convert a human-readable amount to BASE UNITS (smallest indivisible unit) —
+ * the inverse of {@link formatAmount}. Connect `send` / `payment_request` (like
+ * `mint`) take the amount in base units, so the dApp converts at this UI edge.
+ * String-based (no float) so precision is exact. Throws on invalid input.
+ *
+ * Apps that already depend on the SDK can use its `parseTokenAmount` instead —
+ * this local copy keeps the example dependency-light.
+ */
+export function parseAmount(human: string, decimals: number): string {
+  const str = (human ?? '').trim();
+  if (!/^\d+(\.\d+)?$/.test(str)) throw new Error(`Invalid amount: "${human}"`);
+  const [intPart, fracPart = ''] = str.split('.');
+  if (fracPart.length > decimals) {
+    throw new Error(`Amount "${human}" has more than ${decimals} decimal place(s)`);
+  }
+  return BigInt(intPart + fracPart.padEnd(decimals, '0')).toString();
+}
+
+/** Non-throwing {@link parseAmount} for live UI hints: `null` when not valid yet. */
+export function safeParseAmount(human: string, decimals: number): string | null {
+  try {
+    return parseAmount(human, decimals);
+  } catch {
+    return null;
+  }
+}
+
 export function formatFiat(value: number | null | undefined): string {
   if (value == null) return '—';
   return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
