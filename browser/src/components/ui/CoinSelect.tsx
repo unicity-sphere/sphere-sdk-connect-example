@@ -13,7 +13,8 @@ interface CoinOption {
 
 interface CoinSelectProps {
   value: string;
-  onChange: (coinId: string) => void;
+  /** Reports the chosen coin's id AND decimals (callers need decimals to convert human→base units). */
+  onChange: (coinId: string, decimals: number) => void;
   query: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
 }
 
@@ -28,7 +29,7 @@ export function CoinSelect({ value, onChange, query }: CoinSelectProps) {
       .then((assets) => {
         if (assets?.length) {
           setCoins(assets);
-          if (!value && assets[0]) onChange(assets[0].coinId);
+          if (!value && assets[0]) onChange(assets[0].coinId, assets[0].decimals);
         }
         setLoaded(true);
       })
@@ -55,7 +56,7 @@ export function CoinSelect({ value, onChange, query }: CoinSelectProps) {
 
   if (coins.length === 0) {
     return (
-      <input type="text" value={value} onChange={(e) => onChange(e.target.value)}
+      <input type="text" value={value} onChange={(e) => onChange(e.target.value, 0)}
         placeholder="Coin ID"
         className="w-36 px-3 py-2 border border-white/8 rounded-xl text-sm text-white bg-white/3 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500" />
     );
@@ -86,7 +87,7 @@ export function CoinSelect({ value, onChange, query }: CoinSelectProps) {
         <div className="absolute z-50 mt-1 w-full bg-(--bg-elevated) border border-white/8 rounded-xl shadow-lg overflow-hidden">
           {coins.map((coin) => (
             <button key={coin.coinId} type="button"
-              onClick={() => { onChange(coin.coinId); setOpen(false); }}
+              onClick={() => { onChange(coin.coinId, coin.decimals); setOpen(false); }}
               className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm cursor-pointer transition-colors ${
                 coin.coinId === value ? 'bg-orange-500/15' : 'hover:bg-white/6'
               }`}>
