@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.16",
-    "@unicitylabs/sphere-sdk": "0.10.2",
+    "@unicitylabs/sphere-sdk": "0.10.3",
     "@unicitylabs/sphere-ui": "^0.1.23",
     "lucide-react": "^0.400.0",
     "react": "^19.1.1",
