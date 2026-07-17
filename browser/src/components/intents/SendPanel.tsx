@@ -106,11 +106,11 @@ function SendOutcomeBanner({ outcome }: { outcome: SendOutcome | null }) {
   if (outcome.kind === 'delivery-pending') {
     return (
       <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25">
-        <p className="text-sm font-semibold text-amber-400">Delivery pending — the money already moved</p>
+        <p className="text-sm font-semibold text-amber-400">Delivery pending — the money may already have moved</p>
         <p className="mt-1 text-xs leading-relaxed text-white/60">
-          The spend certified on-chain, but delivery to the recipient has not landed yet. The wallet journaled
-          it and will retry under the original transfer. There is no <code className="font-mono">transferId</code> to
-          show — pending results carry an empty id by design.
+          The spend is committed on-chain — or, on some resolutions, may already be — and delivery to the recipient
+          has not landed yet. The wallet kept the transfer open to settle and deliver it under the original id.
+          There is no <code className="font-mono">transferId</code> to show — pending results carry an empty id by design.
         </p>
         <p className="mt-2 text-xs font-semibold text-amber-400">
           Do NOT re-send. A second send consumes a different source token and pays twice.

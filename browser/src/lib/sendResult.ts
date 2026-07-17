@@ -34,8 +34,9 @@ export type SendOutcome =
 /**
  * Maps a raw `send` intent result to an outcome the UI can act on.
  *
- * MONEY SAFETY: `deliveryPending` wins over everything. It means the spend
- * certified on-chain and the SDK journaled delivery for retry under the ORIGINAL
+ * MONEY SAFETY: `deliveryPending` wins over everything. It means the spend is
+ * committed — or, on possibly-certified resolutions, may already be committed —
+ * on-chain, and the SDK kept the intent open to settle it under the ORIGINAL
  * transferId. Re-issuing send() would consume a different source token and pay
  * twice. Never map this to a failure and never offer a retry for it.
  */
