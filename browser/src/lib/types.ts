@@ -79,4 +79,5 @@ export type Section =
   | 'identity' | 'assets' | 'balance' | 'tokens' | 'history' | 'resolve'
   | 'send' | 'dm' | 'payment-request' | 'receive' | 'sign-message' | 'mint'
   | 'chat'
-  | 'events';
+  | 'events'
+  | 'docs';

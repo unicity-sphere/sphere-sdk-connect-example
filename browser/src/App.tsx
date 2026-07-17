@@ -26,6 +26,9 @@ import { ChatPanel } from './components/chat/ChatPanel';
 // Events
 import { EventLogPanel } from './components/events/EventLogPanel';
 
+// Docs
+import { DocsPanel } from './components/docs/DocsPanel';
+
 export default function App() {
   const wallet = useWalletConnect();
   const [section, setSection] = useState<Section>('assets');
@@ -76,6 +79,7 @@ export default function App() {
     'mint': <MintPanel intent={intent} />,
     'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} />,
     'events': <EventLogPanel on={on} />,
+    'docs': <DocsPanel />,
   };
 
   return (
