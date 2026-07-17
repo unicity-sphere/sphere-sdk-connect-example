@@ -22,10 +22,11 @@ import { autoConnect } from '@unicitylabs/sphere-sdk/connect/browser';
 import { SPHERE_NETWORKS, INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
 
 // 1. Connect — autoConnect picks the transport (iframe -> extension -> popup).
-const { client, identity, disconnect } = await autoConnect({
+const { client, connection, disconnect } = await autoConnect({
   dapp: { name: 'My dApp', description: 'What it does', url: location.origin },
   network: SPHERE_NETWORKS.testnet2,
 });
+// connection.identity -> { chainPubkey, directAddress?, nametag? }
 
 // 2. Read — queries need no approval.
 const balance = await client.query('sphere_getBalance');
