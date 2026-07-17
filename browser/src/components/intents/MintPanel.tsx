@@ -21,23 +21,37 @@ const PRESETS: { label: string; coinId: string; amount: string }[] = [
   { label: 'ETH 0.5', coinId: '746a4e75aeb3221462f762fc41925735983c6039e89288bbb632a8fb1012e7d0', amount: '500000000000000000' },
 ];
 
+/**
+ * The wallet refuses a mint until the per-wallet subscription key is on the oracle
+ * (sphere ConnectIntentHandler: rejects INTERNAL_ERROR "Subscription is still being
+ * set up"). That is a transient wait, not a failure — and it only ever occurs when
+ * the wallet runs with subscriptions enabled.
+ */
+function isSubscriptionWarmup(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  return message.toLowerCase().includes('subscription is still being set up');
+}
+
 export function MintPanel({ intent }: Props) {
   const [coinId, setCoinId] = useState('');
   const [amount, setAmount] = useState('');
   const [raw, setRaw] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
+  const [warmingUp, setWarmingUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const execute = async () => {
     if (!coinId || !amount) return;
     setLoading(true);
     setError(null);
+    setWarmingUp(false);
     setRaw(null);
     try {
       const result = await intent(INTENT_ACTIONS.MINT, { coinId, amount });
       setRaw(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      if (isSubscriptionWarmup(err)) setWarmingUp(true);
+      else setError(err instanceof Error ? err.message : 'Failed');
     } finally {
       setLoading(false);
     }
@@ -76,6 +90,16 @@ export function MintPanel({ intent }: Props) {
           {loading ? 'Minting...' : 'Mint'}
         </Button>
       </div>
+
+      {warmingUp && (
+        <div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/25">
+          <p className="text-sm font-semibold text-amber-400">Subscription is still being set up</p>
+          <p className="mt-1 text-xs leading-relaxed text-white/60">
+            The wallet provisions a per-wallet subscription key before it can certify a mint. Nothing failed —
+            wait a moment and press Mint again. A dApp should treat this as a transient retry, not an error.
+          </p>
+        </div>
+      )}
 
       <ResultDisplay result={raw} error={error} />
     </div>
