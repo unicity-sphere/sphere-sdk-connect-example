@@ -1,0 +1,23 @@
+{
+  "name": "sphere-connect-backend-auth-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@unicitylabs/sphere-sdk": "0.11.14",
+    "react": "^19.1.1",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "~5.6.0",
+    "vite": "^7.1.7"
+  }
+}

@@ -1,0 +1,149 @@
+:root {
+  color-scheme: dark;
+  font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0b0d12;
+  color: #e8eaf0;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  background: #14171f;
+  border: 1px solid #262b38;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+.card h1 {
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+
+.card .subtitle {
+  font-size: 13px;
+  color: #8b93a7;
+  margin: 0 0 28px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: #b7bdcc;
+  margin-bottom: 20px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #363c4c;
+  border-top-color: #ff7a3d;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+button.primary {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: none;
+  background: #ff7a3d;
+  color: #14171f;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.secondary {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #363c4c;
+  background: transparent;
+  color: #b7bdcc;
+  font-size: 13px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.error-box {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(240, 90, 90, 0.1);
+  border: 1px solid rgba(240, 90, 90, 0.35);
+  color: #ff9b9b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.session dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  margin: 0 0 18px;
+}
+
+.session dt {
+  font-size: 12px;
+  color: #8b93a7;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+
+.session dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  word-break: break-all;
+}
+
+.proof-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(74, 200, 140, 0.1);
+  border: 1px solid rgba(74, 200, 140, 0.3);
+  font-size: 12.5px;
+  color: #a9e6c8;
+  line-height: 1.5;
+}
+
+.badge {
+  flex-shrink: 0;
+}
