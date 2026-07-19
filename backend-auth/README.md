@@ -29,6 +29,27 @@ and the backend. The backend is the only party that decides who signed in,
 and it decides that by cryptographically **recovering** the pubkey from the
 signature — never by reading an identifier out of a request body.
 
+## When to use this
+
+Reach for this when your backend needs to know **who** a user is — prove wallet
+ownership — but does **not** need to move their tokens.
+
+Concrete examples:
+
+- A **game backend** that authenticates the player for leaderboards, ownership
+  checks, or sessions, but never touches their funds. (This is how the Unicity
+  quests backend works — it verifies a signature and keys the user on their
+  `chainPubkey`.)
+- A classic **"Sign in with your wallet"** login for any web app.
+- **Gating an API**: issue a JWT keyed on the verified `chainPubkey`.
+
+The backend here has **no wallet connection and no intents at all** — it can
+only verify a signature and issue a session. If you need to *act* on a wallet,
+use a different example:
+
+- To **send / receive on the user's behalf** (they approve) → [`../browser/`](../browser) (web) or [`../nodejs/`](../nodejs) (Node).
+- To move **your own** tokens autonomously → [`../bot/`](../bot).
+
 ## Run it
 
 Two terminals:

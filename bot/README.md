@@ -17,6 +17,23 @@ What it does once running:
 - Exposes a small `send` / `balance` / `help` / `exit` command loop on stdin.
 - Optionally logs incoming token transfers (see "Receiving tokens" below).
 
+## When to use this
+
+Reach for this shape when your agent should act **from its own wallet, with no
+human approving each action** — it holds the keys and owns the funds.
+
+Concrete examples:
+
+- A **tipping / reward bot** that pays out UCT from its own float.
+- A **faucet** that mints or sends test tokens on request.
+- A **game NPC or agent** that holds a balance and pays/receives autonomously.
+- Any **autonomous agent** that transacts on its own behalf.
+
+**Use a different example if:**
+
+- You need to act on a **user's** wallet (they approve each action) → [`../browser/`](../browser) (web) or [`../nodejs/`](../nodejs) (Node over WebSocket).
+- You only need to **know who a user is** (login), not hold funds → [`../backend-auth/`](../backend-auth).
+
 ## Prerequisites
 
 - Node.js **>= 22**.
