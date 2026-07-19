@@ -113,9 +113,9 @@ async function main() {
           case 'send': {
             const to = parts[1];
             const amount = parts[2];
-            const coinId = parts[3] ?? 'UCT';
-            if (!to || !amount) {
-              console.log('Usage: send @nametag amount [coinId]');
+            const coinId = parts[3];
+            if (!to || !amount || !coinId) {
+              console.log('Usage: send @nametag <amount-base-units> <coinId-hex>');
               break;
             }
             const sendResult = await client.intent(INTENT_ACTIONS.SEND, {
@@ -157,10 +157,10 @@ async function main() {
           case 'pay': {
             const payTo = parts[1];
             const payAmount = parts[2];
-            const payCoin = parts[3] ?? 'UCT';
+            const payCoin = parts[3];
             const payMsg = parts.slice(4).join(' ') || undefined;
-            if (!payTo || !payAmount) {
-              console.log('Usage: pay @nametag amount [coinId] [message]');
+            if (!payTo || !payAmount || !payCoin) {
+              console.log('Usage: pay @nametag <amount-base-units> <coinId-hex> [message]');
               break;
             }
             const payResult = await client.intent(INTENT_ACTIONS.PAYMENT_REQUEST, {
@@ -248,10 +248,10 @@ Commands:
     resolve @tag       - Resolve nametag/address to peer info
 
   INTENTS (require wallet approval)
-    send @to amt [coin]              - Send L3 tokens
+    send @to <amount> <coinId>       - Send L3 tokens (amount in smallest units, coinId lowercase hex)
     mint <coinId> <amount>           - Self-mint a fungible token (coinId = lowercase hex)
     dm @to message                   - Send direct message
-    pay @to amt [coin] [message]     - Send payment request
+    pay @to <amount> <coinId> [msg]  - Send payment request (amount in smallest units, coinId lowercase hex)
     receive                          - Receive incoming tokens
     sign message text                - Sign a message
 

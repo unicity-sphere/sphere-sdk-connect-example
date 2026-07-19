@@ -34,6 +34,9 @@ const CHAT: NavItem[] = [
 const EVENTS: NavItem[] = [
   { key: 'events', label: 'Event Log' },
 ];
+const DOCS: NavItem[] = [
+  { key: 'docs', label: 'Docs & Source' },
+];
 
 function NavGroup({ title, color, items, active, onSelect }: {
   title: string; color: string; items: NavItem[]; active: Section; onSelect: (s: Section) => void;
@@ -66,7 +69,7 @@ export function PageShell({ identity, onDisconnect, section, onSectionChange, ch
       {/* Mobile horizontal nav */}
       <div className="lg:hidden border-b border-white/8 bg-(--bg-surface) overflow-x-auto">
         <div className="flex gap-1 px-3 py-2 min-w-max">
-          {[...QUERIES, ...INTENTS, ...CHAT, ...EVENTS].map((item) => (
+          {[...QUERIES, ...INTENTS, ...CHAT, ...EVENTS, ...DOCS].map((item) => (
             <button
               key={item.key}
               onClick={() => onSectionChange(item.key)}
@@ -89,6 +92,7 @@ export function PageShell({ identity, onDisconnect, section, onSectionChange, ch
           <NavGroup title="Intents" color="text-orange-500" items={INTENTS} active={section} onSelect={onSectionChange} />
           <NavGroup title="Chat" color="text-green-500" items={CHAT} active={section} onSelect={onSectionChange} />
           <NavGroup title="Events" color="text-purple-500" items={EVENTS} active={section} onSelect={onSectionChange} />
+          <NavGroup title="Reference" color="text-white/45" items={DOCS} active={section} onSelect={onSectionChange} />
         </aside>
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
