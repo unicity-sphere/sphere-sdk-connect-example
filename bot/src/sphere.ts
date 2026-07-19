@@ -43,11 +43,26 @@
  * - `sphere.identity` getter (`core/Sphere.ts:1418-1424`) returns `Identity | null`
  *   (`types/index.ts:30-37`, re-exported from the SDK root via `index.ts:134`
  *   `export * from './types'`): `{ chainPubkey, directAddress?, ipnsName?, nametag? }`.
+ * - `sphere.setOracleApiKey(apiKey): Promise<void>` — `core/Sphere.ts:1584`, public.
+ *   Re-keys the LIVE oracle + rebuilds the token engine without a full
+ *   Sphere rebuild (transport/socket/discovery stay up) — used below to apply
+ *   a saved/provisioned key discovered AFTER init.
+ * - Bootstrap-init finding (verified against `oracle/UnicityAggregatorProvider.ts`):
+ *   `UnicityAggregatorProviderConfig.apiKey` is `apiKey?: string` (:37) and
+ *   defaults to `''` at construction (:84, `config.apiKey ?? ''`) — the
+ *   provider does NOT validate/require a non-empty key at construction time,
+ *   it only affects request headers later. `createNodeProviders` /
+ *   `Sphere.init` never throw on an empty oracle key. So booting with
+ *   `oracle: { apiKey: '' }` when there's no env key yet is safe: init
+ *   succeeds, `sphere.deriveAddress(0)` + `signMessage` (pure local crypto,
+ *   no oracle involved) can sign the SGW provisioning challenge, and
+ *   `setOracleApiKey` re-keys the live oracle once a key is resolved.
  */
 import 'dotenv/config';
 import { Sphere, type Identity } from '@unicitylabs/sphere-sdk';
 import { createNodeProviders } from '@unicitylabs/sphere-sdk/impl/nodejs';
 import { createOwnStorageWalletApiProviders } from '@unicitylabs/sphere-sdk/impl/shared/wallet-api';
+import { resolveAggregatorKey } from './aggregatorKey';
 
 const TESTNET2 = 'testnet2' as const;
 
@@ -61,7 +76,11 @@ export interface BotSphere {
 /**
  * Boot the bot's own Sphere wallet against testnet2.
  *
- * - `AGGREGATOR_API_KEY` — testnet2 aggregator key (required; see `.env.example`).
+ * - `AGGREGATOR_API_KEY` — OPTIONAL testnet2 aggregator key (see
+ *   `.env.example`). Leave it unset and the bot provisions + persists its
+ *   OWN per-wallet free-plan key from the SGW on first boot (reused on every
+ *   later boot from `BOT_DATA_DIR/aggregator-key.json`) — see
+ *   `resolveAggregatorKey` / `provisionAggregatorKey`.
  * - `BOT_MNEMONIC` — persists the bot's identity across runs. Leave empty to
  *   auto-generate a fresh one (printed once — save it to persist).
  * - `BOT_DATA_DIR` — local file storage root for wallet + token data
@@ -73,19 +92,21 @@ export interface BotSphere {
  *   receive mailbox-delivered payments.
  */
 export async function createBotSphere(): Promise<BotSphere> {
-  const aggregatorApiKey = process.env.AGGREGATOR_API_KEY;
-  if (!aggregatorApiKey) {
-    throw new Error('AGGREGATOR_API_KEY is required (see bot/.env.example)');
-  }
+  const envKey = process.env.AGGREGATOR_API_KEY?.trim() || undefined;
   const botMnemonic = process.env.BOT_MNEMONIC || undefined;
   const botDataDir = process.env.BOT_DATA_DIR || './.bot-data';
   const walletApiUrl = process.env.WALLET_API_URL || undefined;
 
+  // Bootstrap init: the wallet must exist (to sign the SGW provisioning
+  // challenge with sphere.deriveAddress(0)) before a key can be resolved,
+  // but createNodeProviders wants SOME oracle apiKey up front. An empty
+  // string is safe here — see the bootstrap-init finding in the file-header
+  // comment above; it's re-keyed via setOracleApiKey below once resolved.
   const base = createNodeProviders({
     network: TESTNET2,
     dataDir: `${botDataDir}/wallet`,
     tokensDir: `${botDataDir}/tokens`,
-    oracle: { apiKey: aggregatorApiKey },
+    oracle: { apiKey: envKey ?? '' },
   });
 
   const receivesPayments = Boolean(walletApiUrl);
@@ -113,6 +134,19 @@ export async function createBotSphere(): Promise<BotSphere> {
   const identity = sphere.identity;
   if (!identity) {
     throw new Error('Sphere.init succeeded but sphere.identity is null');
+  }
+
+  const { apiKey, source } = await resolveAggregatorKey(sphere, {
+    network: TESTNET2,
+    dataDir: botDataDir,
+    envKey,
+  });
+  // eslint-disable-next-line no-console
+  console.log(`Aggregator key: ${source}`); // never log the key value itself
+  if (source !== 'env') {
+    // The env key (if any) was already the init-time oracle key; a saved or
+    // freshly-provisioned key still needs to be applied to the live oracle.
+    await sphere.setOracleApiKey(apiKey);
   }
 
   return { sphere, identity, receivesPayments };

@@ -37,8 +37,9 @@ Concrete examples:
 ## Prerequisites
 
 - Node.js **>= 22**.
-- No account setup needed to send/DM: `bot/.env.example` already ships a
-  **public, non-secret** testnet2 aggregator key (`AGGREGATOR_API_KEY`).
+- No account setup needed to send/DM: leave `AGGREGATOR_API_KEY` unset and the
+  bot provisions its own free testnet2 aggregator key on first boot (see
+  "Aggregator key — two ways" below).
 
 ## Run it
 
@@ -85,7 +86,32 @@ exact integer base units itself, so there's no floating-point precision loss
 even for high-decimal coins.
 
 `npm test` runs the unit tests (currently just the base-unit/coin-resolution
-helpers in `src/coins.ts`).
+helpers in `src/coins.ts`, plus the SGW-provisioning challenge validator and
+key-resolution fallback chain in `src/sgwChallenge.ts` / `src/aggregatorKey.ts`).
+
+## Aggregator key — two ways
+
+The bot needs an aggregator (SGW) API key to submit transactions. There are
+two ways to get one, controlled by `AGGREGATOR_API_KEY` in `.env`:
+
+- **Auto (default) — leave `AGGREGATOR_API_KEY` empty.** On first boot the
+  bot provisions its own free-plan key from the SGW via a
+  challenge/sign/verify flow (`sphere.deriveAddress(0)` signs the challenge —
+  pure local crypto, no key needed to do it), then persists it to
+  `BOT_DATA_DIR/aggregator-key.json` and reuses it on every later boot
+  (no re-provisioning). This is a **get-or-create keyed by the wallet's
+  index-0 identity** — same wallet, same key, stable across restarts. The
+  gateway URL is taken from the SDK's per-network config
+  (`NETWORKS[network].aggregatorUrl`), so this works on mainnet too, not just
+  testnet2. The point is to give **each bot its own rate limit** — sharing one
+  static key across every instance of this example means they'd all share
+  (and contend for) that one key's rate limit.
+- **Explicit — set `AGGREGATOR_API_KEY`.** Forces that key and skips
+  provisioning entirely (e.g. to use a shared team key or a paid plan). This
+  always takes priority over a saved/provisioned key.
+
+The bot logs which path it took on boot: `Aggregator key: env` / `saved` /
+`provisioned`. The key value itself is never logged.
 
 ## Receiving tokens: the wallet-api nuance
 
