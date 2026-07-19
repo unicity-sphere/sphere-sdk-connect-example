@@ -47,6 +47,12 @@ npm run dev        # http://localhost:5174
 ```
 Needs a Sphere wallet reachable at `http://localhost:5173` (or the Sphere extension). See [browser/README.md](browser/README.md).
 
+> **Testing a local dApp against the real (hosted) wallet?** It only works via
+> **iframe** — load your dApp as a custom agent at
+> **https://sphere.unicity.network/agents/custom**. The **popup path returns
+> `403`** against the hosted wallet. (Applies to both `browser/` and
+> `backend-auth/frontend`.)
+
 ### `nodejs/` — Node dApp over WebSocket
 
 ```bash

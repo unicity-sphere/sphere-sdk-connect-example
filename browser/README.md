@@ -37,6 +37,14 @@ Requires a Sphere wallet reachable at `http://localhost:5173`, or the Sphere
 browser extension installed. Open the dev URL, click **Connect**, approve, and
 each panel drives one query / intent / event.
 
+> **Testing against the real (hosted) wallet — use the iframe, not a popup.**
+> To connect a *local* dApp to the **live** wallet, load it as a **custom
+> agent** inside the wallet at **https://sphere.unicity.network/agents/custom** —
+> the wallet embeds your dApp in an **iframe** and acts as the Connect host (the
+> P1 transport). The **popup path (P3) does NOT work against the hosted wallet —
+> it returns `403`.** Popup/localhost only works for a Sphere wallet you run
+> yourself at `localhost:5173`.
+
 ## What it demonstrates
 
 **Queries** (read-only, no approval):

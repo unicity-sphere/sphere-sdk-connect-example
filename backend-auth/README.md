@@ -74,6 +74,15 @@ Open `http://localhost:5173`, click **Sign in with your Sphere wallet**,
 approve the connection and the signature request in your wallet. On success
 the page shows the recovered `chainPubkey` and a truncated session JWT.
 
+> **Testing against the real (hosted) wallet — use the iframe, not a popup.**
+> The frontend uses `autoConnect`, which falls back to a **popup** when it's not
+> running inside a wallet — and the popup path **does NOT work against the hosted
+> wallet (`https://sphere.unicity.network`): it returns `403`.** To test a
+> *local* frontend against the **live** wallet, load it as a **custom agent** at
+> **https://sphere.unicity.network/agents/custom** so the wallet embeds it in an
+> **iframe** (the P1 transport). Popup/localhost only works for a wallet you run
+> yourself.
+
 ## The byte-exact-challenge gotcha
 
 `backend/src/challenge.ts` funnels both challenge creation (`GET /challenge`)
