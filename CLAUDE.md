@@ -1,6 +1,6 @@
 # CLAUDE.md - Sphere SDK Connect Example
 
-Demonstration project showing how to integrate the **Sphere Connect** protocol into browser and Node.js applications. The Connect module enables dApps to interact with Sphere wallets through a transport-agnostic, permission-based RPC interface.
+Demonstration project with four runnable examples of working with a Sphere wallet: a **browser dApp** and a **Node.js dApp** (both use the Connect protocol to drive a user's wallet), a **bot** that runs its own wallet (direct SDK, no Connect), and a **backend-auth** flow (a frontend brokers a wallet signature, a backend verifies it and issues a JWT). The Connect module enables dApps to interact with Sphere wallets through a transport-agnostic, permission-based RPC interface.
 
 ## Project Structure
 
@@ -46,12 +46,28 @@ sphere-sdk-connect-example/
 │   ├── tsconfig.json
 │   └── vite.config.ts
 │
-└── nodejs/                    # Node.js CLI example
-    ├── src/
-    │   ├── index.ts               # Interactive CLI client (all queries + intents)
-    │   └── mock-wallet-server.ts  # Mock wallet with rich test data
-    ├── package.json
-    └── tsconfig.json
+├── nodejs/                    # Node.js dApp — CLI over WebSocketTransport + a mock wallet
+│   ├── src/
+│   │   ├── index.ts               # Interactive CLI client (all queries + intents)
+│   │   └── mock-wallet-server.ts  # Mock wallet with rich test data
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── bot/                       # Bot that runs its OWN wallet (direct SDK, NOT Connect)
+│   ├── src/
+│   │   ├── sphere.ts              # own-wallet Sphere.init (+ optional wallet-api receive rail)
+│   │   ├── index.ts               # DM auto-reply, self-mint, money-safe send loop
+│   │   ├── coins.ts               # symbol→coinId + human→base-unit helpers (unit-tested)
+│   │   ├── aggregatorKey.ts       # env key → saved → SGW auto-provision + persist (unit-tested)
+│   │   ├── provisionAggregatorKey.ts, sgwChallenge.ts  # SGW challenge/sign/verify
+│   │   └── *.test.ts
+│   ├── .env.example
+│   ├── package.json
+│   └── tsconfig.json
+│
+└── backend-auth/              # Sign in with a Sphere wallet (quest topology)
+    ├── backend/               # Express: /challenge + /verify via recoverPubkeyFromSignature → JWT
+    └── frontend/              # Vite dApp: autoConnect → sign_message → POST /verify → session
 ```
 
 ## Quick Start
@@ -81,18 +97,42 @@ npm run client     # Connects to ws://localhost:8765
 
 CLI commands:
 - **Queries:** `identity`, `balance`, `assets`, `fiat`, `tokens`, `history`, `resolve @tag`
-- **Intents:** `send @to amt [coin]`, `mint <coinId> <amount>`, `dm @to message`, `pay @to amt [coin] [message]`, `receive`, `sign message text`
+- **Intents:** `send @to <amount-base-units> <coinId-hex>`, `mint <coinId-hex> <amount-base-units>`, `dm @to message`, `pay @to <amount-base-units> <coinId-hex> [message]`, `receive`, `sign message text`
 - **Other:** `disconnect`, `help`
+
+> Amounts are **base units** (integer strings) and `coinId` is the lowercase 64-hex id — the contract the real wallet enforces.
+
+### Bot (own wallet)
+
+```bash
+cd bot
+npm install
+cp .env.example .env
+npm start          # boots its own wallet on testnet2, self-mints, DM-echoes
+```
+
+No Connect — the bot *is* the wallet. Leave `AGGREGATOR_API_KEY` empty and it auto-provisions its own free-plan SGW key on first boot and persists it.
+
+### Backend Auth (sign in with a wallet)
+
+```bash
+# Terminal 1 — backend  (http://localhost:8787)
+cd backend-auth/backend  && npm install && cp .env.example .env && npm start
+# Terminal 2 — frontend (http://localhost:5173)
+cd backend-auth/frontend && npm install && cp .env.example .env && npm run dev
+```
+
+Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubkeyFromSignature` and issues a JWT keyed on `chainPubkey`. To test against the **real hosted wallet**, load a dApp via the iframe custom-agent at `https://sphere.unicity.network/agents/custom` — the popup path returns `403`.
 
 ## Dependencies
 
-Both subprojects pin a published sphere-sdk version:
+All four subprojects pin the same published sphere-sdk version:
 ```json
-"@unicitylabs/sphere-sdk": "0.10.2"
+"@unicitylabs/sphere-sdk": "0.11.14"
 ```
 
-- **Browser:** React 19, Vite 7, Tailwind CSS 4
-- **Node.js:** `ws` (WebSocket), `tsx` (TypeScript runner)
+- **Browser / backend-auth frontend:** React 19, Vite 7
+- **Node.js / bot / backend-auth backend:** `tsx` (TypeScript runner); nodejs/bot use `ws`; backend-auth backend uses `express` + `jsonwebtoken`
 
 ## Sphere Connect Protocol Overview
 
