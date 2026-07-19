@@ -55,23 +55,37 @@ each panel drives one query / intent / event.
 
 ## How the connection is made
 
-The example auto-selects a transport by priority (see `src/lib/detection.ts`):
+This example **hand-rolls** transport selection by priority (see
+`src/hooks/useWalletConnect.ts` + `src/lib/detection.ts`) so you can see each
+transport explicitly:
 
 ```typescript
-import { autoConnect } from '@unicitylabs/sphere-sdk/connect/browser';
-import { SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { ConnectClient, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sdk/connect/browser';
+import { isInIframe, hasExtension } from './lib/detection';
+
+const WALLET_URL = import.meta.env.VITE_WALLET_URL ?? 'https://sphere.unicity.network';
 
 // P1 iframe (dApp embedded in Sphere) → P2 extension → P3 popup window.
-const { client, connection, disconnect } = await autoConnect({
-  dapp: { name: 'My dApp', description: 'What it does', url: location.origin },
-  network: SPHERE_NETWORKS.testnet2,   // the {id,name} object — Connect wants this, not a string
-});
-// connection.identity → { chainPubkey, directAddress?, nametag? }
-const balance = await client.query('sphere_getBalance');
+let transport;
+if (isInIframe()) {
+  transport = PostMessageTransport.forClient();
+} else if (hasExtension()) {
+  transport = ExtensionTransport.forClient();
+} else {
+  const popup = window.open(`${WALLET_URL}/connect?origin=${encodeURIComponent(location.origin)}`, 'sphere', 'width=420,height=700');
+  transport = PostMessageTransport.forClient({ target: popup, targetOrigin: WALLET_URL });
+}
+
+const client = new ConnectClient({ transport, dapp, network: SPHERE_NETWORKS.testnet2 });
+const { identity } = await client.connect();   // silent on load if the origin is already approved
 ```
 
-`autoConnect` also handles **silent reconnect** on page load — no popup if the
-origin is already approved.
+> **Prefer the one-liner?** The SDK also ships `autoConnect()` (from
+> `@unicitylabs/sphere-sdk/connect/browser`), which does this whole P1/P2/P3
+> selection in a single call — pass `walletUrl` for the popup path, and read the
+> identity from `result.connection.identity`. See
+> [`../backend-auth/frontend`](../backend-auth/frontend) for that style.
 
 ## Documentation
 

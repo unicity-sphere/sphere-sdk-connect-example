@@ -88,7 +88,7 @@ All four packages pin the same published SDK version:
 ## Documentation
 
 - [browser/CONNECT.md](browser/CONNECT.md) — full browser dApp integration guide
-- [sphere-sdk/docs/CONNECT.md](../../sphere-sdk/docs/CONNECT.md) — protocol reference
+- [sphere-sdk/docs/CONNECT.md](../sphere-sdk/docs/CONNECT.md) — protocol reference
 
 ## License
 

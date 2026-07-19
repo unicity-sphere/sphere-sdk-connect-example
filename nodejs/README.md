@@ -50,10 +50,11 @@ npm run client     # Terminal 2: CLI dApp — type "help"
 The client connects, then gives you a command loop:
 
 ```
-identity | balance | assets | tokens | history | resolve @tag      # queries
-send @to <amount-base-units> <coinId-hex>                          # intents
+identity | balance | assets | fiat | tokens | history | resolve @tag   # queries
+send @to <amount-base-units> <coinId-hex>                              # intents
+pay  @to <amount-base-units> <coinId-hex> [msg]                        # payment request
 mint <coinId-hex> <amount-base-units> | dm @to <msg> | receive | sign <msg>
-conversations | messages <pubkey> | unread | read <id...>          # chat
+conversations | messages <pubkey> | unread | read <id...>              # chat
 ```
 
 > Amounts are **base units** (integer strings) and `coinId` is the lowercase
