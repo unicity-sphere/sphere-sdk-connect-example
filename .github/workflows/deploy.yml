@@ -35,7 +35,7 @@ jobs:
       # Two builds into one Pages artifact (one repo = one Pages site).
       # Same code, different wallet target baked in via VITE_WALLET_URL:
       #   /          → production wallet (sphere.unicity.network)
-      #   /staging/  → staging wallet (sphere repo's gh-pages `main` branch deploy)
+      #   /staging/  → staging wallet (sphere.staging.unicity.network)
       - name: Build (production wallet → /)
         run: npm run build
         env:
@@ -49,7 +49,7 @@ jobs:
         run: npx vite build --outDir dist/staging
         env:
           VITE_BASE_PATH: /sphere-sdk-connect-example/staging/
-          VITE_WALLET_URL: https://unicity-sphere.github.io/sphere/main
+          VITE_WALLET_URL: https://sphere.staging.unicity.network
 
       - uses: actions/upload-pages-artifact@v3
         with:

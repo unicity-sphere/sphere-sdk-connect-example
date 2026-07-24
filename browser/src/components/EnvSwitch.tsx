@@ -3,7 +3,7 @@
  *
  * Both are the same code built twice (see .github/workflows/deploy.yml):
  *   - production build → site root, talks to https://sphere.unicity.network
- *   - staging build    → /staging/,  talks to https://unicity-sphere.github.io/sphere/main
+ *   - staging build    → /staging/,  talks to https://sphere.staging.unicity.network
  *
  * The current environment is derived purely from the baked-in base path
  * (`import.meta.env.BASE_URL`), and the button always points at the *other*
