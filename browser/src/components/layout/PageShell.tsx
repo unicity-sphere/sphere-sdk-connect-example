@@ -5,6 +5,7 @@ import { WalletHeader } from './WalletHeader';
 interface PageShellProps {
   identity: PublicIdentity;
   onDisconnect: () => void;
+  isWalletLocked: boolean;
   section: Section;
   onSectionChange: (s: Section) => void;
   children: React.ReactNode;
@@ -61,10 +62,10 @@ function NavGroup({ title, color, items, active, onSelect }: {
   );
 }
 
-export function PageShell({ identity, onDisconnect, section, onSectionChange, children }: PageShellProps) {
+export function PageShell({ identity, onDisconnect, isWalletLocked, section, onSectionChange, children }: PageShellProps) {
   return (
     <div className="flex flex-col h-screen bg-(--bg-root)">
-      <WalletHeader identity={identity} onDisconnect={onDisconnect} />
+      <WalletHeader identity={identity} onDisconnect={onDisconnect} isWalletLocked={isWalletLocked} />
 
       {/* Mobile horizontal nav */}
       <div className="lg:hidden border-b border-white/8 bg-(--bg-surface) overflow-x-auto">

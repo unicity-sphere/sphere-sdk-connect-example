@@ -6,9 +6,12 @@ import { EnvSwitch } from '../EnvSwitch';
 interface WalletHeaderProps {
   identity: PublicIdentity;
   onDisconnect: () => void;
+  /** Locked means locked-but-connected. A green "Connected" badge here would be a lie the
+   *  user acts on while every panel answers WALLET_LOCKED (4009). */
+  isWalletLocked: boolean;
 }
 
-export function WalletHeader({ identity, onDisconnect }: WalletHeaderProps) {
+export function WalletHeader({ identity, onDisconnect, isWalletLocked }: WalletHeaderProps) {
   return (
     <header className="bg-(--bg-surface) border-b border-white/8 px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -23,10 +26,17 @@ export function WalletHeader({ identity, onDisconnect }: WalletHeaderProps) {
       </div>
       <div className="flex items-center gap-3">
         <EnvSwitch />
-        <span className="inline-flex items-center gap-1.5 text-xs text-green-400">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          Connected
-        </span>
+        {isWalletLocked ? (
+          <span className="inline-flex items-center gap-1.5 text-xs text-amber-400">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            Locked
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-xs text-green-400">
+            <span className="w-2 h-2 rounded-full bg-green-500" />
+            Connected
+          </span>
+        )}
         <Button variant="secondary" onClick={onDisconnect}>
           Disconnect
         </Button>
