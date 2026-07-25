@@ -21,6 +21,9 @@ export interface WalletConnectState {
   /** Bumps once per unlock that returned the SAME wallet. Read panels use it as a refetch
    *  trigger — the reference retry-after-unlock. Never used to replay an intent. */
   unlockEpoch: number;
+  /** Connect protocol version the WALLET reported at handshake ('2.1', '2.0', …), or null.
+   *  Decides what wallet:locked means — see src/lib/walletProtocol.ts. */
+  walletProtocol: string | null;
   identity: PublicIdentity | null;
   permissions: readonly PermissionScope[];
   error: string | null;
@@ -47,6 +50,7 @@ const DISCONNECTED: WalletConnectState = {
   isWalletLocked: false,
   walletChanged: false,
   unlockEpoch: 0,
+  walletProtocol: null,
   identity: null,
   permissions: [],
   error: null,
@@ -56,6 +60,12 @@ const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.ne
 
 // sessionStorage key for popup session resume (P3 only)
 const SESSION_KEY_POPUP = 'sphere-connect-popup-session';
+
+const DAPP_META = {
+  name: 'Connect Demo',
+  description: 'Sphere Connect browser example',
+  url: location.origin,
+} as const;
 
 /** Wait for the wallet popup to signal it's ready */
 function waitForHostReady(timeoutMs = HOST_READY_TIMEOUT): Promise<void> {
@@ -96,17 +106,87 @@ export function useWalletConnect(): UseWalletConnect {
     identityRef.current = state.identity;
   }, [state.identity]);
 
-  const dappMeta = {
-    name: 'Connect Demo',
-    description: 'Sphere Connect browser example',
-    url: location.origin,
-  } as const;
+  const makeClient = useCallback(
+    (transport: ConnectTransport, extra: { resumeSessionId?: string; silent?: boolean } = {}): ConnectClient =>
+      new ConnectClient({ transport, dapp: DAPP_META, network: SPHERE_NETWORKS.testnet2, ...extra }),
+    [],
+  );
 
-  const makeClient = (
-    transport: ConnectTransport,
-    extra: { resumeSessionId?: string; silent?: boolean } = {},
-  ): ConnectClient =>
-    new ConnectClient({ transport, dapp: dappMeta, network: SPHERE_NETWORKS.testnet2, ...extra });
+  /**
+   * Handshake on `transport` and publish the result. The single place a session is created —
+   * seven call sites used to repeat this block, which is why the wallet's protocol version and
+   * the new ConnectResult.locked had nowhere to be recorded.
+   *
+   * `result.locked === true` means the wallet was LOCKED when we resumed and the session is
+   * nevertheless alive: connected AND locked, in one state. That is a success, not a refusal.
+   */
+  const handshake = useCallback(
+    async (transport: ConnectTransport, extra: { resumeSessionId?: string; silent?: boolean } = {}) => {
+      const client = makeClient(transport, extra);
+      clientRef.current = client;
+      const result = await client.connect();
+      if (popupMode.current) sessionStorage.setItem(SESSION_KEY_POPUP, result.sessionId);
+      setState({
+        ...DISCONNECTED,
+        isConnected: true,
+        isWalletLocked: result.locked === true,
+        identity: result.identity,
+        permissions: result.permissions,
+        walletProtocol: client.walletProtocol,
+      });
+      return result;
+    },
+    [makeClient],
+  );
+
+  const rehandshaking = useRef(false);
+
+  /**
+   * The wallet host announced HOST_READY while we already believed we were connected — the
+   * wallet page reloaded (a reload during a lock does exactly this) and the old ConnectHost is
+   * gone. Rebuild the transport and resume the SAME session id silently: the persisted origin
+   * approval survives a reload, so the user must not see a consent prompt for it. If the
+   * wallet is still locked, the resume succeeds with locked: true.
+   *
+   * Extension mode never receives HOST_READY — only the PostMessage host sends it — so this is
+   * a no-op there by construction.
+   */
+  const rehandshake = useCallback(async () => {
+    if (rehandshaking.current) return;
+    rehandshaking.current = true;
+    try {
+      const wasPopup = popupMode.current;
+      if (!wasPopup && !isInIframe()) return;
+      if (wasPopup && (!popupRef.current || popupRef.current.closed)) return;
+
+      transportRef.current?.destroy();
+      const transport = wasPopup
+        ? PostMessageTransport.forClient({ target: popupRef.current!, targetOrigin: WALLET_URL })
+        : PostMessageTransport.forClient();
+      transportRef.current = transport;
+
+      const resumeSessionId = wasPopup ? sessionStorage.getItem(SESSION_KEY_POPUP) ?? undefined : undefined;
+      await handshake(transport, { resumeSessionId, silent: true });
+    } catch {
+      // The host came back without a resumable session — leave the state alone; the user
+      // reconnects explicitly. Never surface an error for a background re-handshake.
+    } finally {
+      rehandshaking.current = false;
+    }
+  }, [handshake]);
+
+  // Permanent HOST_READY listener, replacing the one-shot mount listener. It is only armed once
+  // we believe we are connected: a HOST_READY arriving before that belongs to the connect path
+  // itself (waitForHostReady), not to a host restart.
+  useEffect(() => {
+    if (!state.isConnected) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type !== HOST_READY_TYPE) return;
+      void rehandshake();
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [state.isConnected, rehandshake]);
 
   /**
    * Open (or re-open) popup, create fresh transport + client, do handshake.
@@ -137,16 +217,10 @@ export function useWalletConnect(): UseWalletConnect {
     await waitForHostReady();
 
     const resumeSessionId = sessionStorage.getItem(SESSION_KEY_POPUP) ?? undefined;
-    const client = makeClient(transport, { resumeSessionId });
-    clientRef.current = client;
+    await handshake(transport, { resumeSessionId });
 
-    const result = await client.connect();
-    sessionStorage.setItem(SESSION_KEY_POPUP, result.sessionId);
-
-    setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
-
-    return client;
-  }, [dappMeta]);
+    return clientRef.current!;
+  }, [handshake]);
 
   /**
    * Ensure we have a working client.
@@ -182,14 +256,11 @@ export function useWalletConnect(): UseWalletConnect {
       popupMode.current = false;
       const transport = ExtensionTransport.forClient();
       transportRef.current = transport;
-      const client = makeClient(transport);
-      clientRef.current = client;
-      const result = await client.connect();
-      setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
+      await handshake(transport);
     } catch (err) {
       setState((s) => ({ ...s, isConnecting: false, error: err instanceof Error ? err.message : 'Connection failed' }));
     }
-  }, [dappMeta]);
+  }, [handshake]);
 
   const connectViaPopup = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
@@ -201,10 +272,7 @@ export function useWalletConnect(): UseWalletConnect {
         popupMode.current = false;
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
-        const client = makeClient(transport);
-        clientRef.current = client;
-        const result = await client.connect();
-        setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
+        await handshake(transport);
       } else {
         // Outside iframe — open popup window
         popupMode.current = true;
@@ -213,7 +281,7 @@ export function useWalletConnect(): UseWalletConnect {
     } catch (err) {
       setState((s) => ({ ...s, isConnecting: false, error: err instanceof Error ? err.message : 'Connection failed' }));
     }
-  }, [openPopupAndConnect, dappMeta]);
+  }, [openPopupAndConnect, handshake]);
 
   const connect = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
@@ -227,11 +295,7 @@ export function useWalletConnect(): UseWalletConnect {
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
 
-        const client = makeClient(transport);
-        clientRef.current = client;
-
-        const result = await client.connect();
-        setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
+        await handshake(transport);
       } else if (hasExtension()) {
         await connectViaExtension();
       } else {
@@ -244,7 +308,7 @@ export function useWalletConnect(): UseWalletConnect {
         error: err instanceof Error ? err.message : 'Connection failed',
       }));
     }
-  }, [openPopupAndConnect, dappMeta]);
+  }, [connectViaExtension, connectViaPopup, handshake]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -445,11 +509,8 @@ export function useWalletConnect(): UseWalletConnect {
         popupMode.current = false;
         const transport = PostMessageTransport.forClient();
         transportRef.current = transport;
-        const client = makeClient(transport, { silent: true });
-        clientRef.current = client;
         try {
-          const result = await client.connect();
-          setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
+          await handshake(transport, { silent: true });
         } catch {
           // Parent rejected (origin not approved yet) — clean up, show Connect button
           transportRef.current?.destroy();
@@ -467,12 +528,8 @@ export function useWalletConnect(): UseWalletConnect {
         const transport = ExtensionTransport.forClient();
         transportRef.current = transport;
 
-        const client = makeClient(transport, { silent: true });
-        clientRef.current = client;
-
         try {
-          const result = await client.connect();
-          setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
+          await handshake(transport, { silent: true });
         } catch {
           // Origin not approved — clean up and show Connect button (no error message)
           transportRef.current?.destroy();
@@ -508,11 +565,7 @@ export function useWalletConnect(): UseWalletConnect {
 
           await waitForHostReady(5000);
 
-          const client = makeClient(transport, { resumeSessionId: savedSession, silent: true });
-          clientRef.current = client;
-          const result = await client.connect();
-          sessionStorage.setItem(SESSION_KEY_POPUP, result.sessionId);
-          setState({ ...DISCONNECTED, isConnected: true, identity: result.identity, permissions: result.permissions });
+          await handshake(transport, { resumeSessionId: savedSession, silent: true });
         };
         resumePopup()
           .catch(() => {

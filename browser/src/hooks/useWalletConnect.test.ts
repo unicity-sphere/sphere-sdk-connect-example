@@ -220,3 +220,45 @@ describe('useWalletConnect — wallet:disconnected', () => {
     expect(mocks.transportDestroys).toHaveLength(1);
   });
 });
+describe('useWalletConnect — HOST_READY', () => {
+  it('does not re-handshake on the HOST_READY that belongs to its own connect', async () => {
+    await mountAndConnect();
+    expect(FakeConnectClient.instances).toHaveLength(1);
+  });
+
+  // A wallet page reload — which is exactly what a reload during a lock looks like — leaves the
+  // dApp talking to a ConnectHost that no longer exists. The replacement host re-announces
+  // HOST_READY; resume the SAME session silently, because the persisted origin approval
+  // survives the reload and the user must not be re-prompted for consent.
+  it('re-handshakes with the saved session id when the host announces HOST_READY again', async () => {
+    const { result } = await mountAndConnect();
+    FakeConnectClient.nextSessionId = 'session-2';
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', { data: { type: HOST_READY_TYPE } }));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(FakeConnectClient.instances).toHaveLength(2));
+
+    expect(FakeConnectClient.last.options.resumeSessionId).toBe('session-1');
+    expect(FakeConnectClient.last.options.silent).toBe(true);
+    expect(sessionStorage.getItem(SESSION_KEY_POPUP)).toBe('session-2');
+    expect(result.current.isConnected).toBe(true);
+  });
+});
+
+describe('useWalletConnect — resume onto a locked wallet', () => {
+  // The most common entry into this feature: the wallet was already locked when the dApp
+  // resumed. Connect 2.1 makes that handshake SUCCEED and carries locked: true, so the dApp is
+  // connected AND locked in one state — no refusal, no reconnect loop, no consent prompt.
+  it('is connected and locked when the handshake response carries locked: true', async () => {
+    FakeConnectClient.nextLocked = true;
+    const { result } = await mountAndConnect();
+
+    expect(result.current.isConnected).toBe(true);
+    expect(result.current.isWalletLocked).toBe(true);
+    expect(result.current.walletProtocol).toBe('2.1');
+    expect(sessionStorage.getItem(SESSION_KEY_POPUP)).toBe('session-1');
+    expect(mocks.transportDestroys).toHaveLength(0);
+  });
+});
