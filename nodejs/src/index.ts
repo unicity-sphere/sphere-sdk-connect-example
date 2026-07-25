@@ -6,8 +6,10 @@
  *   2. Run client:        npx tsx src/index.ts
  */
 
-import { ConnectClient, RPC_METHODS, INTENT_ACTIONS, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { ConnectClient, ERROR_CODES, RPC_METHODS, INTENT_ACTIONS, SPHERE_NETWORKS, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect';
+import type { PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
 import { WebSocketTransport } from '@unicitylabs/sphere-sdk/connect/nodejs';
+import { describeConnectFailure, isSameWallet } from './lockResume';
 import WebSocket from 'ws';
 import readline from 'readline';
 
@@ -39,6 +41,54 @@ async function main() {
   console.log('Session:', client.session);
   console.log('Identity:', JSON.stringify(result.identity, null, 2));
   console.log('Permissions:', result.permissions.join(', '));
+  let connectedIdentity: PublicIdentity | null = result.identity;
+  // Queries only. An intent is NEVER auto-resumed: it moves money and would fire with no fresh
+  // user gesture, at the exact moment the wallet came back.
+  let lastQuery: { method: string; params?: Record<string, unknown> } | null = null;
+
+  async function runQuery(method: string, params?: Record<string, unknown>): Promise<unknown> {
+    lastQuery = { method, params };
+    return client.query(method, params);
+  }
+
+  if (result.locked) {
+    console.log('\n[state] the wallet was LOCKED when we resumed — connected AND locked.');
+    console.log('        Requests answer 4009 until you type "unlock" in the wallet.\n');
+  }
+
+  // Auto-pushed by ConnectHost — no sphere_subscribe needed for any of these.
+  client.on(WALLET_EVENTS.LOCKED, () => {
+    console.log(`\n[EVENT] wallet:locked — session preserved; requests answer ${ERROR_CODES.WALLET_LOCKED}`);
+    showPrompt();
+  });
+  client.on(WALLET_EVENTS.UNLOCKED, (data: unknown) => {
+    const next = (data as { identity?: PublicIdentity } | undefined)?.identity ?? null;
+    if (!isSameWallet(connectedIdentity, next)) {
+      connectedIdentity = next;
+      console.log('\n[EVENT] wallet:unlocked — DIFFERENT wallet came back. Nothing resumed.');
+      console.log('        New identity:', JSON.stringify(next));
+      lastQuery = null;
+      showPrompt();
+      return;
+    }
+    // Nothing to re-subscribe: the host replayed every suspended subscription key before it
+    // pushed this event.
+    console.log('\n[EVENT] wallet:unlocked — same wallet, same session.');
+    if (lastQuery) {
+      const replay = lastQuery;
+      client
+        .query(replay.method, replay.params)
+        .then((res) => console.log(`[resume] ${replay.method}:`, JSON.stringify(res, null, 2)))
+        .catch((err) => console.error('[resume]', describeConnectFailure(err)))
+        .finally(showPrompt);
+      return;
+    }
+    showPrompt();
+  });
+  client.on(WALLET_EVENTS.DISCONNECTED, () => {
+    console.log('\n[EVENT] wallet:disconnected — the session is gone. Re-run the client to re-handshake.');
+    process.exit(0);
+  });
 
   // Subscribe to events
   client.on('transfer:incoming', (data: unknown) => {
@@ -69,32 +119,32 @@ async function main() {
       try {
         switch (cmd) {
           case 'balance': {
-            const balance = await client.query(RPC_METHODS.GET_BALANCE);
+            const balance = await runQuery(RPC_METHODS.GET_BALANCE);
             console.log('Balance:', JSON.stringify(balance, null, 2));
             break;
           }
           case 'assets': {
-            const assets = await client.query(RPC_METHODS.GET_ASSETS);
+            const assets = await runQuery(RPC_METHODS.GET_ASSETS);
             console.log('Assets:', JSON.stringify(assets, null, 2));
             break;
           }
           case 'fiat': {
-            const fiat = await client.query(RPC_METHODS.GET_FIAT_BALANCE);
+            const fiat = await runQuery(RPC_METHODS.GET_FIAT_BALANCE);
             console.log('Fiat Balance:', JSON.stringify(fiat, null, 2));
             break;
           }
           case 'tokens': {
-            const tokens = await client.query(RPC_METHODS.GET_TOKENS);
+            const tokens = await runQuery(RPC_METHODS.GET_TOKENS);
             console.log('Tokens:', JSON.stringify(tokens, null, 2));
             break;
           }
           case 'history': {
-            const history = await client.query(RPC_METHODS.GET_HISTORY);
+            const history = await runQuery(RPC_METHODS.GET_HISTORY);
             console.log('History:', JSON.stringify(history, null, 2));
             break;
           }
           case 'identity': {
-            const identity = await client.query(RPC_METHODS.GET_IDENTITY);
+            const identity = await runQuery(RPC_METHODS.GET_IDENTITY);
             console.log('Identity:', JSON.stringify(identity, null, 2));
             break;
           }
@@ -104,7 +154,7 @@ async function main() {
               console.log('Usage: resolve @nametag');
               break;
             }
-            const peer = await client.query(RPC_METHODS.RESOLVE, {
+            const peer = await runQuery(RPC_METHODS.RESOLVE, {
               identifier: identifier.startsWith('@') ? identifier : '@' + identifier,
             });
             console.log('Resolved:', JSON.stringify(peer, null, 2));
@@ -191,7 +241,7 @@ async function main() {
           }
           case 'conversations':
           case 'convos': {
-            const convos = await client.query(RPC_METHODS.GET_CONVERSATIONS);
+            const convos = await runQuery(RPC_METHODS.GET_CONVERSATIONS);
             console.log('Conversations:', JSON.stringify(convos, null, 2));
             break;
           }
@@ -204,7 +254,7 @@ async function main() {
             }
             const msgParams: Record<string, unknown> = { peerPubkey: peer };
             if (parts[2]) msgParams.limit = parseInt(parts[2]);
-            const msgs = await client.query(RPC_METHODS.GET_MESSAGES, msgParams);
+            const msgs = await runQuery(RPC_METHODS.GET_MESSAGES, msgParams);
             console.log('Messages:', JSON.stringify(msgs, null, 2));
             break;
           }
@@ -212,7 +262,7 @@ async function main() {
             const unreadPeer = parts[1] || undefined;
             const unreadParams: Record<string, unknown> = {};
             if (unreadPeer) unreadParams.peerPubkey = unreadPeer;
-            const unread = await client.query(RPC_METHODS.GET_DM_UNREAD_COUNT, unreadParams);
+            const unread = await runQuery(RPC_METHODS.GET_DM_UNREAD_COUNT, unreadParams);
             console.log('Unread:', JSON.stringify(unread, null, 2));
             break;
           }
@@ -222,7 +272,7 @@ async function main() {
               console.log('Usage: read <messageId1> [messageId2] ...');
               break;
             }
-            const readResult = await client.query(RPC_METHODS.MARK_AS_READ, { messageIds: ids });
+            const readResult = await runQuery(RPC_METHODS.MARK_AS_READ, { messageIds: ids });
             console.log('Marked as read:', JSON.stringify(readResult, null, 2));
             break;
           }
@@ -264,6 +314,9 @@ Commands:
   OTHER
     disconnect                   - Disconnect and exit
     help                         - Show this help
+    (lock the wallet with "lock" in the mock server: queries then fail with 4009,
+     the session survives, "identity" still works from the frozen snapshot, and the
+     last query auto-resumes on "unlock" — intents never do)
 `);
             break;
           }
@@ -271,7 +324,7 @@ Commands:
             console.log(`Unknown command: ${cmd}. Type "help" for available commands.`);
         }
       } catch (err) {
-        console.error('Error:', err instanceof Error ? err.message : err);
+        console.error('Error:', describeConnectFailure(err));
       }
 
       showPrompt();
