@@ -14,6 +14,13 @@ export interface WalletConnectState {
    *  transport are all ALIVE — requests are answered WALLET_LOCKED (4009) until the host
    *  pushes wallet:unlocked. Against a 2.0 wallet the connection is torn down instead. */
   isWalletLocked: boolean;
+  /** A lock ended with a DIFFERENT wallet than this session was approved for. Unlock is not
+   *  implicitly the same wallet: the lock screen's "restore from recovery phrase" installs
+   *  another seed, and origin approvals carry no identity binding. */
+  walletChanged: boolean;
+  /** Bumps once per unlock that returned the SAME wallet. Read panels use it as a refetch
+   *  trigger — the reference retry-after-unlock. Never used to replay an intent. */
+  unlockEpoch: number;
   identity: PublicIdentity | null;
   permissions: readonly PermissionScope[];
   error: string | null;
@@ -33,11 +40,13 @@ export interface UseWalletConnect extends WalletConnectState {
   extensionInstalled: boolean;
 }
 
-// Reusable disconnected state to avoid repeating isWalletLocked everywhere
+// Reusable disconnected state so no call site has to remember every flag
 const DISCONNECTED: WalletConnectState = {
   isConnected: false,
   isConnecting: false,
   isWalletLocked: false,
+  walletChanged: false,
+  unlockEpoch: 0,
   identity: null,
   permissions: [],
   error: null,
@@ -80,6 +89,12 @@ export function useWalletConnect(): UseWalletConnect {
   const transportRef = useRef<ConnectTransport | null>(null);
   const popupRef = useRef<Window | null>(null);
   const popupMode = useRef(false);
+  // Mirrors state.identity so the auto-pushed event handlers — registered once per connection —
+  // compare against the CURRENT identity instead of a stale closure copy.
+  const identityRef = useRef<PublicIdentity | null>(null);
+  useEffect(() => {
+    identityRef.current = state.identity;
+  }, [state.identity]);
 
   const dappMeta = {
     name: 'Connect Demo',
@@ -354,14 +369,50 @@ export function useWalletConnect(): UseWalletConnect {
       setState((s) => ({ ...s, isWalletLocked: true }));
     });
 
+    // wallet:unlocked — the SAME session continues: no re-handshake, no re-approval, and no
+    // re-subscribe (the host replays every suspended subscription key BEFORE it pushes this).
+    // The payload carries the wallet's identity at unlock time, and checking it is not
+    // optional: the host's lock-edge guard is authoritative, but a dApp must render honestly.
+    const unsubUnlocked = client.on(WALLET_EVENTS.UNLOCKED, (data) => {
+      const next = (data as { identity?: PublicIdentity } | undefined)?.identity ?? null;
+      const previous = identityRef.current;
+      const sameWallet = !!next && !!previous && next.chainPubkey === previous.chainPubkey;
+
+      if (!sameWallet) {
+        // A different seed came back (or none was reported). Resume NOTHING against it — the
+        // origin approval that authorises this session says nothing about which wallet it is.
+        setState((s) => ({ ...s, isWalletLocked: false, walletChanged: true, identity: next ?? s.identity }));
+        return;
+      }
+
+      setState((s) => ({ ...s, isWalletLocked: false, walletChanged: false, unlockEpoch: s.unlockEpoch + 1 }));
+    });
+
+    // wallet:disconnected — logout, wallet deleted, a session that expired while locked, or a
+    // different seed behind the lock screen. Unlike a lock this really is a teardown: nothing
+    // is resumable without a fresh handshake.
+    const unsubDisconnected = client.on(WALLET_EVENTS.DISCONNECTED, () => {
+      transportRef.current?.destroy();
+      clientRef.current = null;
+      transportRef.current = null;
+      popupRef.current = null; // do NOT close the popup — the user may onboard a new wallet there
+      popupMode.current = false;
+      sessionStorage.removeItem(SESSION_KEY_POPUP);
+      setState(DISCONNECTED);
+    });
+
     // identity:changed — auto-pushed by ConnectHost (MetaMask accountsChanged pattern),
     // no sphere_subscribe needed. Update displayed identity when wallet switches address.
+    // identity:changed — the user switched address inside an UNLOCKED wallet. Not a lock event:
+    // it clears both flags because the wallet is demonstrably usable and freshly identified.
     const unsubIdentity = client.on(WALLET_EVENTS.IDENTITY_CHANGED, (data) => {
-      setState((s) => ({ ...s, isWalletLocked: false, identity: data as PublicIdentity }));
+      setState((s) => ({ ...s, isWalletLocked: false, walletChanged: false, identity: data as PublicIdentity }));
     });
 
     return () => {
       unsubLocked();
+      unsubUnlocked();
+      unsubDisconnected();
       unsubIdentity();
     };
   }, [state.isConnected]);

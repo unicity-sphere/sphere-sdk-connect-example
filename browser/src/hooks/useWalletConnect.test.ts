@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { ConnectError, ERROR_CODES, HOST_READY_TYPE, RPC_METHODS, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect';
-import { FakeConnectClient, FAKE_IDENTITY } from '../test/fakeConnectClient';
+import { FakeConnectClient, FAKE_IDENTITY, OTHER_IDENTITY } from '../test/fakeConnectClient';
 import { useWalletConnect } from './useWalletConnect';
 
 // Hoisted so the vi.mock factories below — which run before this file's own declarations —
@@ -155,5 +155,68 @@ describe('useWalletConnect — request failures', () => {
     // The teardown must NOT assign the whole DISCONNECTED constant over the lock flag —
     // the wallet is still locked and the UI must keep saying so.
     expect(result.current.isWalletLocked).toBe(true);
+  });
+});
+describe('useWalletConnect — wallet:unlocked', () => {
+  it('resumes the same session without re-subscribing when the same wallet returns', async () => {
+    const { result } = await mountAndConnect();
+    const client = FakeConnectClient.last;
+    const registrationsBeforeUnlock = client.onCalls.length;
+
+    act(() => client.emit(WALLET_EVENTS.LOCKED, {}));
+    act(() => client.emit(WALLET_EVENTS.UNLOCKED, { identity: FAKE_IDENTITY }));
+
+    expect(result.current.isWalletLocked).toBe(false);
+    expect(result.current.walletChanged).toBe(false);
+    expect(result.current.unlockEpoch).toBe(1);
+    expect(result.current.isConnected).toBe(true);
+    expect(sessionStorage.getItem(SESSION_KEY_POPUP)).toBe('session-1');
+    // The host re-arms every suspended subscription BEFORE pushing wallet:unlocked, so a dApp
+    // must send nothing here. A client-side re-subscribe would mean a dApp that never
+    // upgrades loses its event streams forever.
+    expect(client.onCalls).toHaveLength(registrationsBeforeUnlock);
+    expect(client.queries).toHaveLength(0);
+  });
+
+  // "Forgot password -> restore from recovery phrase" on the wallet's lock screen installs a
+  // DIFFERENT seed, and the origin approval that authorises this session carries no identity
+  // binding. The host's own lock-edge guard revokes instead of unlocking, but a dApp must
+  // still render honestly if it ever sees a mismatching payload.
+  it('flags a different wallet and resumes nothing against it', async () => {
+    const { result } = await mountAndConnect();
+    const client = FakeConnectClient.last;
+
+    act(() => client.emit(WALLET_EVENTS.LOCKED, {}));
+    act(() => client.emit(WALLET_EVENTS.UNLOCKED, { identity: OTHER_IDENTITY }));
+
+    expect(result.current.isWalletLocked).toBe(false);
+    expect(result.current.walletChanged).toBe(true);
+    expect(result.current.unlockEpoch).toBe(0);
+    expect(result.current.identity?.chainPubkey).toBe(OTHER_IDENTITY.chainPubkey);
+  });
+
+  it('treats an identity-less unlock payload as a changed wallet', async () => {
+    const { result } = await mountAndConnect();
+    const client = FakeConnectClient.last;
+
+    act(() => client.emit(WALLET_EVENTS.LOCKED, {}));
+    act(() => client.emit(WALLET_EVENTS.UNLOCKED, {}));
+
+    expect(result.current.walletChanged).toBe(true);
+    expect(result.current.unlockEpoch).toBe(0);
+  });
+});
+
+describe('useWalletConnect — wallet:disconnected', () => {
+  it('tears the connection down and clears the saved session', async () => {
+    const { result } = await mountAndConnect();
+
+    act(() => FakeConnectClient.last.emit(WALLET_EVENTS.DISCONNECTED, {}));
+
+    expect(result.current.isConnected).toBe(false);
+    expect(result.current.isWalletLocked).toBe(false);
+    expect(result.current.identity).toBeNull();
+    expect(sessionStorage.getItem(SESSION_KEY_POPUP)).toBeNull();
+    expect(mocks.transportDestroys).toHaveLength(1);
   });
 });
