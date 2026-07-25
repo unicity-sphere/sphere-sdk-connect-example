@@ -126,9 +126,10 @@ Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubke
 
 ## Dependencies
 
-All four subprojects pin the same published sphere-sdk version:
+All five subprojects pin the same sphere-sdk version. This branch develops against the sibling
+`sphere-sdk` checkout; the published pin is restored when the graceful-lock release is cut:
 ```json
-"@unicitylabs/sphere-sdk": "0.11.14"
+"@unicitylabs/sphere-sdk": "file:../../sphere-sdk"
 ```
 
 - **Browser / backend-auth frontend:** React 19, Vite 7
@@ -230,7 +231,7 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 
 ```typescript
 SPHERE_CONNECT_NAMESPACE = 'sphere-connect'
-SPHERE_CONNECT_VERSION = '2.0'
+SPHERE_CONNECT_VERSION = '2.1'
 HOST_READY_TYPE = 'sphere-connect:host-ready'
 HOST_READY_TIMEOUT = 30_000  // ms
 ```
@@ -290,22 +291,28 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 
 ### useWalletConnect Hook (`browser/src/hooks/useWalletConnect.ts`)
 
-Central state management for wallet connection:
-- Manages `ConnectClient` lifecycle (create → connect → disconnect → cleanup)
-- Handles popup window open/close detection
-- Implements `HOST_READY` handshake timeout
-- Exposes: `client`, `identity`, `isConnected`, `isConnecting`, `error`, `connect()`, `disconnect()`
-- Exposes: `query()`, `intent()`, `on()` — passed to panels as props
+- Manages `ConnectClient` lifecycle (create → connect → disconnect → cleanup) through one `handshake()` helper
+- Handles popup window open/close detection and a permanent `HOST_READY` re-handshake
+- Exposes state: `isConnected`, `isConnecting`, `isAutoConnecting`, `isWalletLocked`, `walletChanged`, `unlockEpoch`, `walletProtocol`, `identity`, `permissions`, `error`
+- Exposes: `connect()`, `connectViaExtension()`, `connectViaPopup()`, `disconnect()`, `query()`, `intent()`, `on()`
+- **A lock never disconnects** against a Connect ≥ 2.1 wallet: `wallet:locked` only sets `isWalletLocked`; a resume that lands on a locked wallet succeeds with `ConnectResult.locked === true`; `wallet:unlocked` compares the identity in the payload before resuming and re-subscribes to nothing (the host re-arms); `wallet:disconnected` is the only event that tears anything down. A 2.0 wallet (`walletProtocol`) still gets the old teardown — there, `wallet:locked` also revoked the session
+- Failures are classified by `.code` and `data.reason` (`src/lib/connectErrors.ts`), never by a message regex
 
 ### Mock Wallet Server (`nodejs/src/mock-wallet-server.ts`)
 
-Testing-only server that emulates wallet behavior:
-- Creates `ConnectHost` with mock `SphereInstance`
+- Creates `ConnectHost` with a mock `SphereInstance` (`src/mockSphere.ts`, shared with the tests)
 - Auto-approves all connection requests with full permissions
-- Auto-approves all intents with action-specific success responses (send, mint, dm, payment_request, receive, sign_message)
+- Auto-approves all intents with action-specific success responses
 - Returns rich mock data: identity, assets (UCT + USDU with fiat/24h change), tokens (with statuses), history
+- stdin commands: `lock` (`setLocked()`), `unlock` (`updateSphere()`), `logout` (`revokeSession()`), `unavailable` (`setUnavailable()`), `status` (`walletState` + session + waiting count)
+- `onLockedRequest` is notify-only and increments the passive "N requests waiting — Unlock" counter a real wallet renders in its permanent chrome. It **never** raises a credential surface — no dApp request may
 
 ### Event Subscriptions
+
+- `wallet:locked` — wallet locked, **session alive**, requests answer 4009
+- `wallet:unlocked` — same session resumed; payload carries the current identity; subscriptions already re-armed
+- `wallet:disconnected` — session destroyed; re-handshake to continue
+- `identity:changed` — address switch
 
 Subscribable events (via `client.on()`):
 - `transfer:incoming` — Received tokens
@@ -342,13 +349,20 @@ sphere-sdk/impl/nodejs/connect/
 
 ```bash
 # Browser
-cd browser && npm run dev      # Dev server (:5174)
-cd browser && npm run build    # Type-check + Vite build
-cd browser && npm run preview  # Preview production build
+cd browser && npm run dev        # Dev server (:5174)
+cd browser && npm run build      # Type-check + Vite build
+cd browser && npm test           # vitest run (jsdom + React Testing Library)
+cd browser && npx vitest run src/hooks/useWalletConnect.test.ts   # one file
 
 # Node.js
-cd nodejs && npm run server    # Mock wallet (ws://localhost:8765)
-cd nodejs && npm run client    # CLI client
+cd nodejs && npm run server      # Mock wallet (ws://localhost:8765) — type "lock" / "unlock"
+cd nodejs && npm run client      # CLI client
+cd nodejs && npm test            # vitest run — headless 4009 lock-gate test
+
+# Backend auth / bot
+cd backend-auth/frontend && npm test
+cd backend-auth/backend  && npm test
+cd bot && npm test
 ```
 
 ## Code Style

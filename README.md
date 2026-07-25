@@ -85,10 +85,12 @@ Frontend brokers a `sign_message`; backend recovers the pubkey and issues a JWT.
 
 ## Dependencies
 
-All four packages pin the same published SDK version:
+All five packages pin the same published SDK version. This branch develops against the
+sibling `sphere-sdk` checkout (`file:../../sphere-sdk`); the published pin is restored when
+the graceful-lock release is cut:
 
 ```json
-"@unicitylabs/sphere-sdk": "0.11.14"
+"@unicitylabs/sphere-sdk": "file:../../sphere-sdk"
 ```
 
 ## Documentation

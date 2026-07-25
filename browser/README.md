@@ -59,7 +59,8 @@ each panel drives one query / intent / event.
 > `deliveryPending: true` and **no `transferId`** — see the Send panel; never
 > re-send that (it would pay twice).
 
-**Events** (real-time push): auto-pushed `wallet:locked` · `identity:changed`; subscribable `transfer:incoming` · `transfer:confirmed` · `transfer:failed` · and more.
+```
+**Events** (real-time push): auto-pushed `wallet:locked` · `wallet:unlocked` · `wallet:disconnected` · `identity:changed`; subscribable `transfer:incoming` · `transfer:confirmed` · `transfer:failed` · and more. A lock does **not** disconnect — see [CONNECT.md](CONNECT.md#wallet-lock-handling-wallet_eventslocked).
 
 ## How the connection is made
 

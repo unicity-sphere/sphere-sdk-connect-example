@@ -115,7 +115,11 @@ await wallet.intent('send', { to: '@alice', amount: '1000000000000000000', coinI
   isConnected: boolean;
   isConnecting: boolean;     // true while user-triggered connect is in progress
   isAutoConnecting: boolean; // true during silent check on page load
-  isWalletLocked: boolean;   // true when wallet sends LOCKED event (extension/iframe only)
+  isWalletLocked: boolean;   // wallet:locked received, or the handshake answered locked: true —
+                             // THE SESSION IS STILL ALIVE
+  walletChanged: boolean;    // the wallet that came back from a lock has a different pubkey
+  unlockEpoch: number;       // bumps on each unlock that returned the SAME wallet
+  walletProtocol: string | null; // Connect version the WALLET reported ('2.1' | '2.0' | null)
   identity: PublicIdentity | null;
   permissions: PermissionScope[];
   error: string | null;
@@ -202,7 +206,9 @@ const unsub = wallet.on('transfer:incoming', (data) => {
 return () => unsub();
 ```
 
-Available events: auto-pushed `wallet:locked` and `identity:changed`, plus subscribable `transfer:incoming`, `transfer:confirmed`, `transfer:failed`. The full set is larger — see EventLogPanel for the complete list.
+Available events: auto-pushed `wallet:locked`, `wallet:unlocked`, `wallet:disconnected` and `identity:changed`, plus subscribable `transfer:incoming`, `transfer:confirmed`, `transfer:failed`. The full set is larger — see EventLogPanel for the complete list.
+
+The four events in `AUTO_PUSHED_EVENTS` — `wallet:locked`, `wallet:unlocked`, `wallet:disconnected`, `identity:changed` — are pushed by `ConnectHost` unconditionally. Never route them through `sphere_subscribe`: `Sphere.on()` accepts any string and would silently never emit, so the subscribe would succeed and deliver nothing forever. See [Wallet Lock Handling](#wallet-lock-handling-wallet_eventslocked) below.
 
 ### Auto-pushed wallet events
 
@@ -231,58 +237,166 @@ When using the popup (P3):
 
 ## Wallet Lock Handling (`WALLET_EVENTS.LOCKED`)
 
-When the wallet user logs out or locks the wallet, the `ConnectHost` pushes a `wallet:locked` event to all connected dApps. This is an auto-pushed event — no `sphere_subscribe` call is needed.
+**A lock is a state, not a disconnect.** When the user locks the wallet, `ConnectHost.setLocked()`
+pushes `wallet:locked` and keeps the session, the granted permissions and the transport alive.
+There is no reconnect and no re-approval, in **any** transport mode — popup included.
 
-The correct response depends on the connection mode:
+### What is served while locked, and what is refused
 
-### Extension / iframe mode (P1, P2)
+| While locked | Answer |
+|---|---|
+| `sphere_getIdentity` | **Served** from the wallet's frozen snapshot — the same bytes the handshake response already handed this origin. |
+| `sphere_subscribe` | **Served** `{ subscribed: true }`; the key is recorded and armed on unlock. |
+| `sphere_unsubscribe` | **Served** `{ unsubscribed: true }`. |
+| `sphere_disconnect` | **Served** — a locked dApp can always leave. |
+| everything else, and every intent | `WALLET_LOCKED (4009)` with `data: { reason: 'locked' }`, **in the same tick**. |
+| balances, tokens, history, fiat | **Never served and never cached.** A dApp with a stale balance is a dApp about to collect an unpayable spend. |
 
-Set `isWalletLocked = true` and show a "wallet locked" overlay. The transport stays alive — the extension or parent frame is still running. When the user unlocks or imports a new wallet, the host pushes `identity:changed`, which clears the locked state and updates the displayed identity.
+The host never parks a request and never waits for a human: a locked request is answered
+immediately, so your own timeout is never involved.
+
+### The three events that carry the model
+
+All auto-pushed — no `sphere_subscribe`:
+
+| Event | Meaning | What the dApp must do |
+|---|---|---|
+| `wallet:locked` | Wallet locked. **Session alive.** | Show a locked state. Do **not** disconnect, do **not** clear the saved session id. |
+| `wallet:unlocked` | Same session continues. Payload: `{ identity? }`. | Compare `identity.chainPubkey` with the one you connected as. If it matches, retry your reads. If it does not, you are looking at a **different wallet** — resume nothing. |
+| `wallet:disconnected` | The session is **gone** (logout, wallet deleted, expiry-while-locked, a different seed behind the lock screen). | Clear everything and re-handshake. |
 
 ```typescript
 import { WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect';
 
-const unsubLocked = client.on(WALLET_EVENTS.LOCKED, () => {
+client.on(WALLET_EVENTS.LOCKED, () => {
+  // Nothing is torn down here — in ANY transport mode.
   setState((s) => ({ ...s, isWalletLocked: true }));
 });
 
-const unsubIdentity = client.on(WALLET_EVENTS.IDENTITY_CHANGED, (data) => {
-  // Clears locked state and updates identity when wallet is unlocked
-  setState((s) => ({ ...s, isWalletLocked: false, identity: data as PublicIdentity }));
+client.on(WALLET_EVENTS.UNLOCKED, (data) => {
+  const next = (data as { identity?: PublicIdentity }).identity ?? null;
+  // Unlock is NOT implicitly the same wallet: the lock screen's
+  // "Forgot password -> restore from recovery phrase" installs a different seed, and the
+  // origin approval that authorises this session carries no identity binding.
+  if (!next || next.chainPubkey !== connectedIdentity.chainPubkey) {
+    setState((s) => ({ ...s, isWalletLocked: false, walletChanged: true, identity: next }));
+    return; // resume nothing against a wallet you never connected to
+  }
+  setState((s) => ({ ...s, isWalletLocked: false, unlockEpoch: s.unlockEpoch + 1 }));
+  // Nothing to re-subscribe: the host replays every suspended subscription key BEFORE it
+  // pushes this event. There is deliberately no client-side re-subscribe API.
+});
+
+client.on(WALLET_EVENTS.DISCONNECTED, () => {
+  transport.destroy();
+  sessionStorage.removeItem(SESSION_KEY);
+  setState(DISCONNECTED);
 });
 ```
 
-### Popup mode (P3)
+### Resuming onto a wallet that is already locked
 
-Fully disconnect: destroy the transport, clear the client reference, and remove the saved session from `sessionStorage`. **Do NOT close the popup window** — the user may import another wallet in the same popup and reconnect from scratch.
+A resume handshake whose `sessionId` matches **succeeds** while the wallet is locked, and the
+response carries `locked: true`. You are connected **and** locked, in one state — no refusal, no
+reconnect loop, and no consent prompt (any handshake while locked is forced silent, so an origin
+without an approval sees only the usual empty refusal and learns nothing about the lock):
 
 ```typescript
-const unsubLocked = client.on(WALLET_EVENTS.LOCKED, () => {
-  if (popupMode.current) {
-    // Popup navigated away (logout/refresh) — transport is dead, fully disconnect
-    transportRef.current?.destroy();
-    clientRef.current = null;
-    sessionStorage.removeItem(SESSION_KEY);
-    setState(DISCONNECTED);
-    // Note: do NOT close the popup — user can import another wallet there
-  } else {
-    // Extension/iframe — show locked state, wait for unlock
-    setState((s) => ({ ...s, isWalletLocked: true }));
-  }
+const result = await client.connect();           // resumeSessionId set
+if (result.locked === true) showLockedBanner();   // client.walletLocked is true too
+```
+
+### Talking to an older wallet
+
+The protocol version is `2.1` (`SPHERE_CONNECT_VERSION`). The compatibility gate compares MAJOR
+only, so a `2.0` wallet connects fine — but `wallet:locked` means the **opposite** there: the old
+(now removed) `notifyWalletLocked()` pushed it *and* revoked the session, and `wallet:unlocked`
+never arrives. `ConnectClient.walletProtocol` carries the wallet's version, captured at handshake:
+
+```typescript
+import { WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect';
+
+const minor = Number(/^\d+\.(\d+)$/.exec(client.walletProtocol ?? '')?.[1] ?? NaN);
+const gracefulLock = Number.isFinite(minor) && minor >= 1;
+
+client.on(WALLET_EVENTS.LOCKED, () => {
+  if (!gracefulLock) return teardown(); // 2.0 wallet: the session is already gone
+  setState((s) => ({ ...s, isWalletLocked: true }));
 });
 ```
 
-> **Why the difference?** In popup mode, the wallet page navigated away from `/connect` (e.g. to the logout screen), so the `PostMessageTransport` is dead — there is nothing to resume. In extension/iframe mode, the background script or parent frame stays alive and will push `identity:changed` once the wallet is unlocked.
+Treat an unknown or unparseable version as legacy. Assuming the session survives when it does not
+leaves the dApp stuck on a locked screen forever, waiting for an event the wallet cannot send.
+
+### Handling a request that fails while locked
+
+Discriminate on the numeric `.code` and, if you want detail, on `.data` — **never** on the message
+text. `'Wallet is locked'` is a documented recommendation, not a wire contract:
+
+```typescript
+import { ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
+
+try {
+  await client.query('sphere_getBalance');
+} catch (err) {
+  const code = typeof err === 'object' && err !== null && 'code' in err ? (err as { code: unknown }).code : undefined;
+  if (code === ERROR_CODES.WALLET_LOCKED) {
+    // data is { reason: 'locked' }
+    setLocked(true);            // stay connected; retry after wallet:unlocked
+  } else if (code === ERROR_CODES.NOT_CONNECTED || code === ERROR_CODES.SESSION_EXPIRED) {
+    teardown();                 // the session really is gone
+  } else {
+    surface(err);               // permission denied, user rejected, rate limited, …
+  }
+}
+```
+
+A handful of SDK failures carry no code at all — `Not connected`, `Query timeout: …`,
+`Intent timeout: …`, `Connection timeout`, `Disconnected` — so keep a **narrow** message fallback
+for exactly those. Do **not** match on `session` or `closed`: this example used to, and any typed
+refusal whose text merely mentioned a session forced a full disconnect. See
+`src/lib/connectErrors.ts`.
+
+### Who raises the unlock UI, and when
+
+The **wallet** does, from its own permanent chrome, **only after a human clicks**. A dApp request
+can never raise the password field — not a query, not an intent, not a handshake. What a locked
+request does raise is a passive badge ("N requests waiting — Unlock") via the host's notify-only
+`onLockedRequest`. Expect a locked request to fail typed and silently; expect the user to unlock in
+the wallet on their own initiative.
+
+The reason is not politeness. A forged *consent* dialog gains an attacker nothing; a forged
+*credential* dialog harvests the password that decrypts the seed. Letting a framed origin choose
+the moment a genuine password prompt appears is exactly how a user is trained that an unsolicited
+one is normal.
+
+### Retrying after unlock
+
+In this release the SDK does **not** queue or replay a request that failed with 4009 — the original
+promise rejects and retrying is the dApp's decision. This example bumps an `unlockEpoch` counter on
+each same-wallet unlock and lets **read** panels re-fetch on it
+(`src/components/queries/BalancePanel.tsx`).
+
+**Never auto-replay an intent.** It moves money, and firing it immediately after an unlock means it
+executes with no fresh user gesture, at the exact moment the wallet came back.
 
 ### Host-side requirement
 
-Wallet hosts (the Sphere web app `ConnectPage`, the extension background) **must** call `connectHost.notifyWalletLocked()` when the user logs out. This sends the `wallet:locked` event to the dApp and revokes the session. Call it **before** `destroy()` so the dApp receives a clean signal instead of getting `NOT_CONNECTED` errors on its next request.
+The wallet host must map each transition to exactly one verb:
 
 ```typescript
-// In the wallet's ConnectPage — when user logs out:
-connectHost.notifyWalletLocked();  // sends LOCKED event + revokes session
-connectHost.destroy();             // cleans up transport
+connectHost.setLocked();        // lock:        pushes wallet:locked,       session PRESERVED
+connectHost.updateSphere(s);    // unlock:      pushes wallet:unlocked,     session PRESERVED
+connectHost.revokeSession();    // logout:      pushes wallet:disconnected, session DESTROYED
+connectHost.setUnavailable();   // Sphere gone for a non-lock reason: revokes; requests answer 4001
 ```
+
+Call `setLocked()` **before** `sphere.destroy()`: the host drops its Sphere reference and freezes
+its snapshot there, and destroying first leaves in-flight requests reading a dead instance.
+
+`notifyWalletLocked()` has been **removed**, not deprecated. Its old meaning was *revoke* and its
+new meaning would have been *lock* — the opposite — so an alias would have silently inverted every
+call site. Pick a verb from the table above.
 
 ---
 
@@ -342,16 +456,17 @@ VITE_WALLET_URL=https://sphere.unicity.network  # wallet URL for P3 popup mode
 ## Error Handling
 
 ```typescript
+import { ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
+
 try {
   await wallet.connect();
 } catch (err) {
-  if (err.message.includes('Popup blocked')) {
-    // User needs to allow popups
-  } else if (err.message.includes('Connection timeout')) {
-    // Wallet did not respond in time
-  } else {
-    // User rejected or other error
-  }
+  const code = typeof err === 'object' && err !== null && 'code' in err ? (err as { code: unknown }).code : undefined;
+  if (code === ERROR_CODES.WALLET_LOCKED)              { /* an unapprovable resume while locked */ }
+  else if (code === ERROR_CODES.INCOMPATIBLE_NETWORK)  { /* dApp targets another network */ }
+  else if (code === ERROR_CODES.USER_REJECTED)         { /* user declined */ }
+  else if (err instanceof Error && err.message.includes('Popup blocked')) { /* allow popups */ }
+  else { /* transport failure */ }
 }
 ```
 
