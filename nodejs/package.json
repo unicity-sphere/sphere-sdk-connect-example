@@ -6,7 +6,7 @@
   "scripts": {
     "server": "npx tsx src/mock-wallet-server.ts",
     "client": "npx tsx src/index.ts",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
     "@unicitylabs/sphere-sdk": "file:../../sphere-sdk",
