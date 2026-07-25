@@ -4,10 +4,15 @@ import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sd
 import type { ConnectTransport, PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
 import type { PermissionScope } from '@unicitylabs/sphere-sdk/connect';
 import { isInIframe, hasExtension } from '../lib/detection';
+import { classifyRequestError } from '../lib/connectErrors';
+import { supportsGracefulLock } from '../lib/walletProtocol';
 
 export interface WalletConnectState {
   isConnected: boolean;
   isConnecting: boolean;
+  /** The wallet is locked. Under Connect >= 2.1 the session, the granted permissions and the
+   *  transport are all ALIVE — requests are answered WALLET_LOCKED (4009) until the host
+   *  pushes wallet:unlocked. Against a 2.0 wallet the connection is torn down instead. */
   isWalletLocked: boolean;
   identity: PublicIdentity | null;
   permissions: readonly PermissionScope[];
@@ -69,14 +74,7 @@ export function useWalletConnect(): UseWalletConnect {
 
   const [isAutoConnecting, setIsAutoConnecting] = useState(willSilentCheck);
 
-  const [state, setState] = useState<WalletConnectState>({
-    isConnected: false,
-    isConnecting: false,
-    isWalletLocked: false,
-    identity: null,
-    permissions: [],
-    error: null,
-  });
+  const [state, setState] = useState<WalletConnectState>(DISCONNECTED);
 
   const clientRef = useRef<ConnectClient | null>(null);
   const transportRef = useRef<ConnectTransport | null>(null);
@@ -251,19 +249,30 @@ export function useWalletConnect(): UseWalletConnect {
     setState(DISCONNECTED);
   }, []);
 
-  // Auto-disconnect on transport/session errors (popup closed, refreshed, logged out)
+  // Decide what a failed request means, by ERROR CODE (src/lib/connectErrors.ts).
+  //   locked   → the session is ALIVE. Flag the lock, change nothing else, rethrow.
+  //   teardown → the connection is genuinely gone. Drop everything.
+  //   other    → a typed refusal the session survives. Surface it untouched.
   const handleRequestError = useCallback((err: unknown) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    // Transport dead or session revoked — fully disconnect
-    if (/not.connected|timeout|transport|closed|session/i.test(msg)) {
+    const kind = classifyRequestError(err);
+
+    if (kind === 'teardown') {
       transportRef.current?.destroy();
       clientRef.current = null;
       transportRef.current = null;
       popupRef.current = null;
       popupMode.current = false;
       sessionStorage.removeItem(SESSION_KEY_POPUP);
-      setState(DISCONNECTED);
+      // Preserve isWalletLocked: a codeless timeout raised WHILE the wallet is locked must not
+      // erase the lock by assigning the whole DISCONNECTED constant over it.
+      setState((s) => ({ ...DISCONNECTED, isWalletLocked: s.isWalletLocked }));
+    } else if (kind === 'locked') {
+      // WALLET_LOCKED (4009). Do NOT disconnect — the host preserved this session and will push
+      // wallet:unlocked on it. The caller's promise still rejects: in Release 1 retrying is the
+      // dApp's decision (Task 5's unlockEpoch), never a silent replay by this layer.
+      setState((s) => ({ ...s, isWalletLocked: true }));
     }
+
     throw err;
   }, []);
 
@@ -323,21 +332,26 @@ export function useWalletConnect(): UseWalletConnect {
     if (!state.isConnected || !clientRef.current) return;
     const client = clientRef.current;
 
-    // wallet:locked — pushed automatically by ConnectHost, no sphere_subscribe needed.
-    // Popup mode: fully disconnect — popup navigated away (logout/refresh), no way to resume.
-    // Extension/iframe mode: show locked state, let user unlock and continue (MetaMask pattern).
+    // wallet:locked — under Connect >= 2.1 this is a STATE, not a teardown: the session, the
+    // granted permissions and the transport all survive, in EVERY transport mode. Tearing down
+    // here orphans a host-side session that now outlives the lock, and the next silent
+    // autoConnect reconnects with no prompt at all.
+    //
+    // A 2.0 wallet means the opposite by the same event name — the removed
+    // notifyWalletLocked() pushed it AND revoked the session, so wallet:unlocked will never
+    // arrive and there is nothing to wait for. ConnectClient.walletProtocol tells them apart.
     const unsubLocked = client.on(WALLET_EVENTS.LOCKED, () => {
-      if (popupMode.current) {
+      if (!supportsGracefulLock(client.walletProtocol)) {
         transportRef.current?.destroy();
         clientRef.current = null;
         transportRef.current = null;
-        popupRef.current = null;
+        popupRef.current = null; // do NOT close the popup — the user may onboard another wallet there
         popupMode.current = false;
         sessionStorage.removeItem(SESSION_KEY_POPUP);
         setState(DISCONNECTED);
-      } else {
-        setState((s) => ({ ...s, isWalletLocked: true }));
+        return;
       }
+      setState((s) => ({ ...s, isWalletLocked: true }));
     });
 
     // identity:changed — auto-pushed by ConnectHost (MetaMask accountsChanged pattern),
