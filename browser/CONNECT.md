@@ -424,11 +424,23 @@ chrome carries the passive "N requests blocked — Unlock" badge. This is where 
 session-preserving lock actually pays off — the host outlives both the lock and a reload of the
 framed page.
 
-A locked wallet serves only `sphere_getIdentity` (from a frozen snapshot), `sphere_subscribe`,
-`sphere_unsubscribe` and `sphere_disconnect`. Balances, assets, tokens, fiat balance and history
-are never served and never cached — a stale balance is a dApp about to offer an unpayable spend.
-So a dApp must **stop issuing reads while `isWalletLocked`** and resume on `unlockEpoch`, rather
-than polling into refusals: every refusal increments the wallet's blocked-request badge.
+A locked wallet that HOLDS your session serves four of the sixteen `RPC_METHODS`:
+`sphere_getIdentity` (from a frozen snapshot), `sphere_subscribe`, `sphere_unsubscribe` and
+`sphere_disconnect`. The other **twelve, and every intent**, are refused `WALLET_LOCKED` (4009) —
+the five money reads, `sphere_resolve`, **all four DM reads** (`getConversations`, `getMessages`,
+`getDMUnreadCount`, `markAsRead`) and both invoice reads. Nothing is cached, and **messaging does
+not keep working while locked**. So a dApp must **stop issuing reads while `isWalletLocked`** and
+resume on `unlockEpoch`, rather than polling into refusals: every refusal increments the wallet's
+blocked-request badge.
+
+A wallet that **cold-starts locked** behaves differently, and it is the common path — the
+password is memory-only, so a wallet-page reload or a fresh popup lands there. Such a host holds
+no session, so the HANDSHAKE itself is refused with an errorless empty response: `connect()`
+rejects with a bare "Connection rejected by wallet" and **no code at all**. Do not write
+`if (err.code === ERROR_CODES.WALLET_LOCKED)` expecting to catch this — there is nothing to
+match. The silence is deliberate (the refusal must reveal nothing about the wallet to an origin
+holding no approval), so treat a rejection you did not expect as "not ready yet": stay parked and
+let the next `HOST_READY` retry for you, which is what `useWalletConnect` does.
 
 When a request the USER just triggered is refused with 4009, raise the wallet window for them —
 `useWalletConnect` does this by sampling `navigator.userActivation.isActive` synchronously at the
