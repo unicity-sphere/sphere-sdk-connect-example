@@ -430,6 +430,15 @@ are never served and never cached — a stale balance is a dApp about to offer a
 So a dApp must **stop issuing reads while `isWalletLocked`** and resume on `unlockEpoch`, rather
 than polling into refusals: every refusal increments the wallet's blocked-request badge.
 
+When a request the USER just triggered is refused with 4009, raise the wallet window for them —
+`useWalletConnect` does this by sampling `navigator.userActivation.isActive` synchronously at the
+call site, before any await. That flag is the browser's own transient-activation signal, so it
+separates "the user pressed Fetch Balance" from "a poller ran": a background request never steals
+focus. The banner also carries an explicit button, for browsers without the flag and for a gesture
+that has already expired. Note that a CLOSED popup is not recoverable — the wallet revokes the
+session on `beforeunload` and a fresh window cold-starts locked, so offer a reconnect, not a
+restore.
+
 ---
 
 ## Popup Mode (P3) — Session Resume

@@ -69,6 +69,22 @@ const DAPP_META = {
   url: location.origin,
 } as const;
 
+/**
+ * Is there a live user gesture behind the call happening right now?
+ *
+ * `navigator.userActivation.isActive` is the browser's own transient-activation flag: true for
+ * a short window after a real click/keypress, false for anything a timer or a subscription
+ * callback started. It is what separates "the user pressed Fetch Balance" from "a poller ran",
+ * so it decides whether we may raise the wallet window. Absent (non-Chromium) -> treated as
+ * NOT user-initiated, because guessing wrong in that direction only costs a window raise,
+ * while guessing wrong the other way lets a background timer steal focus.
+ */
+function isUserInitiated(): boolean {
+  const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } })
+    .userActivation;
+  return activation?.isActive ?? false;
+}
+
 /** Wait for the wallet popup to signal it's ready */
 function waitForHostReady(timeoutMs = HOST_READY_TIMEOUT): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -431,30 +447,6 @@ export function useWalletConnect(): UseWalletConnect {
     throw err;
   }, []);
 
-  const query = useCallback(
-    async <T = unknown>(method: RpcMethod | string, params?: Record<string, unknown>): Promise<T> => {
-      const client = await ensureClient();
-      try {
-        return await client.query<T>(method, params);
-      } catch (err) {
-        return handleRequestError(err) as never;
-      }
-    },
-    [ensureClient, handleRequestError],
-  );
-
-  const intent = useCallback(
-    async <T = unknown>(action: IntentAction | string, params: Record<string, unknown>): Promise<T> => {
-      const client = await ensureClient();
-      try {
-        return await client.intent<T>(action, params);
-      } catch (err) {
-        return handleRequestError(err) as never;
-      }
-    },
-    [ensureClient, handleRequestError],
-  );
-
   /**
    * Bring the wallet window to the front. Returns false when there is nothing to raise.
    *
@@ -472,6 +464,54 @@ export function useWalletConnect(): UseWalletConnect {
     popup.focus();
     return true;
   }, []);
+
+  /**
+   * Raise the wallet window when a request was refused BECAUSE the wallet is locked and a
+   * human is the one who asked. `userAsked` is sampled synchronously at the call site, before
+   * any await, so a background poller can never trigger this — only a live gesture can.
+   *
+   * This is the difference between a helpful reaction and a hostile one: raising the window
+   * the user just asked to talk to is what a wallet integration should do, whereas a page
+   * that grabs focus on a timer is a nuisance and an aid to clickjacking. The wallet still
+   * decides everything that happens next — it raises its own password field, we only make the
+   * window visible.
+   */
+  const raiseWalletIfUserAsked = useCallback((err: unknown, userAsked: boolean): void => {
+    if (!userAsked) return;
+    if (classifyRequestError(err) !== 'locked') return;
+    focusWallet();
+  }, [focusWallet]);
+
+  const query = useCallback(
+    async <T = unknown>(method: RpcMethod | string, params?: Record<string, unknown>): Promise<T> => {
+      // Sampled SYNCHRONOUSLY, before any await: this is the only moment at which the user's
+      // gesture is still live. See raiseWalletIfUserAsked.
+      const userAsked = isUserInitiated();
+      const client = await ensureClient();
+      try {
+        return await client.query<T>(method, params);
+      } catch (err) {
+        raiseWalletIfUserAsked(err, userAsked);
+        return handleRequestError(err) as never;
+      }
+    },
+    [ensureClient, handleRequestError, raiseWalletIfUserAsked],
+  );
+
+  const intent = useCallback(
+    async <T = unknown>(action: IntentAction | string, params: Record<string, unknown>): Promise<T> => {
+      const userAsked = isUserInitiated();
+      const client = await ensureClient();
+      try {
+        return await client.intent<T>(action, params);
+      } catch (err) {
+        raiseWalletIfUserAsked(err, userAsked);
+        return handleRequestError(err) as never;
+      }
+    },
+    [ensureClient, handleRequestError, raiseWalletIfUserAsked],
+  );
+
 
   const on = useCallback((event: string, handler: (data: unknown) => void): (() => void) => {
     if (!clientRef.current) throw new Error('Not connected');

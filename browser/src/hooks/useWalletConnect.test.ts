@@ -354,3 +354,70 @@ describe('useWalletConnect — focusWallet', () => {
     expect(hook.result.current.focusWallet()).toBe(false);
   });
 });
+
+describe('useWalletConnect — raising the wallet on a locked refusal', () => {
+  function setActivation(isActive: boolean) {
+    Object.defineProperty(navigator, 'userActivation', {
+      value: { isActive },
+      configurable: true,
+    });
+  }
+
+  it('raises the wallet window when a HUMAN asked and the wallet answered 4009', async () => {
+    const focus = vi.fn();
+    vi.spyOn(window, 'open').mockReturnValue({ closed: false, focus, close: () => {} } as unknown as Window);
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+    focus.mockClear();
+
+    FakeConnectClient.last.queryError = new ConnectError('Wallet is locked', ERROR_CODES.WALLET_LOCKED, {
+      reason: 'locked',
+    });
+    setActivation(true);
+    await act(async () => {
+      await hook.result.current.query(RPC_METHODS.GET_BALANCE).catch(() => {});
+    });
+
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.isWalletLocked).toBe(true);
+  });
+
+  it('does NOT raise it for a background request with no user gesture', async () => {
+    const focus = vi.fn();
+    vi.spyOn(window, 'open').mockReturnValue({ closed: false, focus, close: () => {} } as unknown as Window);
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+    focus.mockClear();
+
+    FakeConnectClient.last.queryError = new ConnectError('Wallet is locked', ERROR_CODES.WALLET_LOCKED, {
+      reason: 'locked',
+    });
+    setActivation(false);
+    await act(async () => {
+      await hook.result.current.query(RPC_METHODS.GET_BALANCE).catch(() => {});
+    });
+
+    // A poller or a subscription callback must never steal focus.
+    expect(focus).not.toHaveBeenCalled();
+    expect(hook.result.current.isWalletLocked).toBe(true);
+  });
+
+  it('does not raise it for a refusal that is not a lock', async () => {
+    const focus = vi.fn();
+    vi.spyOn(window, 'open').mockReturnValue({ closed: false, focus, close: () => {} } as unknown as Window);
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+    focus.mockClear();
+
+    FakeConnectClient.last.queryError = new ConnectError('Nope', ERROR_CODES.PERMISSION_DENIED);
+    setActivation(true);
+    await act(async () => {
+      await hook.result.current.query(RPC_METHODS.GET_BALANCE).catch(() => {});
+    });
+
+    expect(focus).not.toHaveBeenCalled();
+  });
+});
