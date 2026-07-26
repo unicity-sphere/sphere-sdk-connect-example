@@ -400,6 +400,41 @@ call site. Pick a verb from the table above.
 
 ---
 
+## Choosing a transport: how long does the session need to live?
+
+The three transports are not interchangeable. Pick by session lifetime, not by convenience.
+
+**Popup (P3) — for a SHORT, bounded flow.** Connect, get a signature or a JWT, done. Everything
+about the popup is fragile for anything longer:
+
+- closing it is a real **disconnect** — the wallet revokes the session on `beforeunload` and
+  pushes `wallet:disconnected`. There is no "reopen and resume": a fresh window means a fresh
+  host with no session.
+- reloading it **re-locks** the wallet. The password is memory-only by design, so a reload
+  leaves nothing to decrypt the mnemonic with.
+- it cold-starts **locked** even when the user has Sphere unlocked in another tab. A separate
+  window is a separate JS context with its own memory; only the lock signal crosses windows
+  (via `BroadcastChannel`), never the password.
+- it does not scale to several dApps. Each dApp opens its own wallet window, so two connected
+  apps mean two windows and two password prompts.
+
+**Iframe (P1) — for a LONG-LIVED session.** The dApp runs inside Sphere, so one wallet window
+serves every framed app: one host per app, one unlock for all of them, and the wallet's own
+chrome carries the passive "N requests blocked — Unlock" badge. This is where a
+session-preserving lock actually pays off — the host outlives both the lock and a reload of the
+framed page.
+
+**Extension (P2)** sits in between: the host lives in the extension, so it survives the dApp
+page, but the user still unlocks in the extension's own surface.
+
+A locked wallet serves only `sphere_getIdentity` (from a frozen snapshot), `sphere_subscribe`,
+`sphere_unsubscribe` and `sphere_disconnect`. Balances, assets, tokens, fiat balance and history
+are never served and never cached — a stale balance is a dApp about to offer an unpayable spend.
+So a dApp must **stop issuing reads while `isWalletLocked`** and resume on `unlockEpoch`, rather
+than polling into refusals: every refusal increments the wallet's blocked-request badge.
+
+---
+
 ## Popup Mode (P3) — Session Resume
 
 When no extension is installed, the dApp opens a Sphere popup window. **The popup must stay open** for the connection to work — closing it destroys the transport and disconnects.

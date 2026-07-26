@@ -41,6 +41,8 @@ export interface UseWalletConnect extends WalletConnectState {
   isAutoConnecting: boolean;
   /** True if the Sphere browser extension is detected. */
   extensionInstalled: boolean;
+  /** Raise the wallet window (popup mode only). Returns false when there is none to raise. */
+  focusWallet: () => boolean;
 }
 
 // Reusable disconnected state so no call site has to remember every flag
@@ -453,6 +455,24 @@ export function useWalletConnect(): UseWalletConnect {
     [ensureClient, handleRequestError],
   );
 
+  /**
+   * Bring the wallet window to the front. Returns false when there is nothing to raise.
+   *
+   * Call this ONLY from a user gesture — a button, never a failed background request. A page
+   * that yanked focus on its own would be a nuisance at best and a clickjacking aid at worst.
+   *
+   * It deliberately does NOT reopen a CLOSED popup. Closing the popup is a real disconnect:
+   * the wallet revokes the session on beforeunload and pushes wallet:disconnected, and a
+   * fresh window would cold-start LOCKED anyway because the password is memory-only. Offering
+   * to "restore" it would be a lie — the honest move is to reconnect explicitly.
+   */
+  const focusWallet = useCallback((): boolean => {
+    const popup = popupRef.current;
+    if (!popupMode.current || !popup || popup.closed) return false;
+    popup.focus();
+    return true;
+  }, []);
+
   const on = useCallback((event: string, handler: (data: unknown) => void): (() => void) => {
     if (!clientRef.current) throw new Error('Not connected');
     return clientRef.current.on(event, handler);
@@ -669,5 +689,6 @@ export function useWalletConnect(): UseWalletConnect {
     on,
     isAutoConnecting,
     extensionInstalled: hasExtension(),
+    focusWallet,
   };
 }

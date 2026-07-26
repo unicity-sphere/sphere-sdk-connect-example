@@ -5,6 +5,13 @@ interface WalletStatusBannerProps {
   isWalletLocked: boolean;
   walletChanged: boolean;
   walletProtocol: string | null;
+  /**
+   * Raise the wallet window. Wired to a BUTTON, never fired automatically: a page that
+   * grabbed focus on its own would be a nuisance, and the wallet must stay the only thing
+   * that decides when a password field appears. Returns false when there is no window to
+   * raise — the popup was closed, which is a real disconnect, not a lock.
+   */
+  onFocusWallet?: () => boolean;
 }
 
 /**
@@ -18,7 +25,12 @@ interface WalletStatusBannerProps {
  * The banner never offers to unlock. The wallet raises its own credential surface, from its own
  * chrome, after a human click — a dApp may trigger a CONSENT prompt but never a password field.
  */
-export function WalletStatusBanner({ isWalletLocked, walletChanged, walletProtocol }: WalletStatusBannerProps) {
+export function WalletStatusBanner({
+  isWalletLocked,
+  walletChanged,
+  walletProtocol,
+  onFocusWallet,
+}: WalletStatusBannerProps) {
   const legacyWallet = !supportsGracefulLock(walletProtocol);
   if (!isWalletLocked && !walletChanged && !legacyWallet) return null;
 
@@ -29,6 +41,18 @@ export function WalletStatusBanner({ isWalletLocked, walletChanged, walletProtoc
           You are still connected — the wallet kept this session. Requests fail with{' '}
           <code>WALLET_LOCKED (4009)</code> until you unlock it in the wallet window. No reconnect
           and no re-approval is needed.
+          {onFocusWallet && (
+            <div className="mt-2">
+              <button
+                type="button"
+                data-testid="focus-wallet"
+                onClick={() => onFocusWallet()}
+                className="text-xs font-medium underline underline-offset-2"
+              >
+                Bring the wallet window to the front
+              </button>
+            </div>
+          )}
         </AlertBanner>
       )}
       {walletChanged && (

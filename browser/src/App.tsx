@@ -78,7 +78,7 @@ export default function App() {
     'receive': <ReceivePanel intent={intent} />,
     'sign-message': <SignMessagePanel intent={intent} />,
     'mint': <MintPanel intent={intent} />,
-    'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} />,
+    'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} isWalletLocked={wallet.isWalletLocked} unlockEpoch={wallet.unlockEpoch} />,
     'events': <EventLogPanel on={on} />,
     'docs': <DocsPanel />,
   };
@@ -95,6 +95,7 @@ export default function App() {
         isWalletLocked={wallet.isWalletLocked}
         walletChanged={wallet.walletChanged}
         walletProtocol={wallet.walletProtocol}
+        onFocusWallet={wallet.focusWallet}
       />
       {panels[section]}
     </PageShell>

@@ -326,3 +326,31 @@ describe('useWalletConnect — a connect attempt that met a locked wallet', () =
     expect(hook.result.current.isConnected).toBe(true);
   });
 });
+
+describe('useWalletConnect — focusWallet', () => {
+  it('raises an open popup', async () => {
+    const focus = vi.fn();
+    vi.spyOn(window, 'open').mockReturnValue({ closed: false, focus, close: () => {} } as unknown as Window);
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+    focus.mockClear();
+
+    expect(hook.result.current.focusWallet()).toBe(true);
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to pretend a CLOSED popup can be raised', async () => {
+    const popup = { closed: false, focus: vi.fn(), close: () => {} };
+    vi.spyOn(window, 'open').mockReturnValue(popup as unknown as Window);
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+
+    // Closing the popup is a real disconnect — the wallet revokes the session on
+    // beforeunload — and a fresh window would cold-start LOCKED anyway, because the password
+    // is memory-only. Reporting false lets the UI say "reconnect" instead of lying.
+    popup.closed = true;
+    expect(hook.result.current.focusWallet()).toBe(false);
+  });
+});
