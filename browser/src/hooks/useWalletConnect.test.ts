@@ -421,3 +421,46 @@ describe('useWalletConnect — raising the wallet on a locked refusal', () => {
     expect(focus).not.toHaveBeenCalled();
   });
 });
+
+describe('useWalletConnect — a dApp reload must not reload the wallet', () => {
+  it('recovers the existing wallet window without navigating it', async () => {
+    // window.open(url, name) NAVIGATES a window that already has that name. Navigating the
+    // wallet reloads its page, and the password is memory-only — so a dApp reload relocked the
+    // wallet. window.open('', name) hands back the same window without touching it.
+    const opened: Array<string | undefined> = [];
+    const popup = { closed: false, focus: vi.fn(), close: () => {} };
+    vi.spyOn(window, 'open').mockImplementation((url?: string | URL) => {
+      opened.push(url === undefined ? undefined : String(url));
+      return popup as unknown as Window;
+    });
+    sessionStorage.setItem(SESSION_KEY_POPUP, 'session-1');
+
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+
+    // The resume asked for the window by NAME with an empty url, and never navigated it.
+    expect(opened[0]).toBe('');
+    expect(opened.some((u) => u && u.includes('/connect?origin='))).toBe(false);
+    expect(hook.result.current.isConnected).toBe(true);
+  });
+
+  it('falls back to loading the wallet when there is no live window to recover', async () => {
+    const opened: string[] = [];
+    const popup = { closed: false, focus: vi.fn(), close: () => {} };
+    vi.spyOn(window, 'open').mockImplementation((url?: string | URL) => {
+      opened.push(url === undefined ? '' : String(url));
+      return popup as unknown as Window;
+    });
+    // A blank window answers nothing, so the resume handshake fails…
+    FakeConnectClient.nextConnectError = new Error('no wallet there');
+    sessionStorage.setItem(SESSION_KEY_POPUP, 'session-1');
+
+    renderHook(() => useWalletConnect());
+
+    // …so the SAME window is navigated to the wallet rather than left stray. Asserted on the
+    // navigation itself, not on the outcome: the fallback then parks in waitForHostReady, and
+    // whether it eventually connects is a different test's business.
+    await waitFor(() => expect(opened.some((u) => u.includes('/connect?origin='))).toBe(true));
+    expect(opened[0]).toBe('');
+  });
+});

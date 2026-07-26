@@ -63,6 +63,29 @@ const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.ne
 // sessionStorage key for popup session resume (P3 only)
 const SESSION_KEY_POPUP = 'sphere-connect-popup-session';
 
+/**
+ * The popup's window NAME. `window.open(url, name)` does not merely return an existing window
+ * with that name — it NAVIGATES it to `url`. Navigating the wallet reloads its page, and the
+ * password is memory-only, so that RELOCKS the wallet. Reloading the dApp was enough to trigger
+ * it: the fresh JS context has lost its window handle, so the reconnect called window.open with
+ * a URL and re-navigated a perfectly good wallet window.
+ *
+ * `window.open('', name)` returns the existing window WITHOUT navigating it — that is how a
+ * handle is recovered. When no such window exists it yields a blank one instead, which is then
+ * navigated properly.
+ */
+const POPUP_NAME = 'sphere-wallet';
+const POPUP_FEATURES = 'width=420,height=650';
+
+function walletConnectUrl(): string {
+  return WALLET_URL + '/connect?origin=' + encodeURIComponent(location.origin);
+}
+
+/** A saved session id means a wallet window was serving us — worth trying to recover. */
+function popupSessionId(): string | null {
+  return typeof sessionStorage === 'undefined' ? null : sessionStorage.getItem(SESSION_KEY_POPUP);
+}
+
 const DAPP_META = {
   name: 'Connect Demo',
   description: 'Sphere Connect browser example',
@@ -272,16 +295,21 @@ export function useWalletConnect(): UseWalletConnect {
     // Whether THIS call created the window decides whether we wait for HOST_READY.
     let openedFreshWindow = false;
     if (!popupRef.current || popupRef.current.closed) {
-      const popup = window.open(
-        WALLET_URL + '/connect?origin=' + encodeURIComponent(location.origin),
-        'sphere-wallet',
-        'width=420,height=650',
-      );
-      if (!popup) {
-        throw new Error('Popup blocked. Please allow popups for this site.');
+      // Recover a handle to an already-open wallet window WITHOUT navigating it — see
+      // POPUP_NAME. Only if there is nothing to recover do we navigate, which is what actually
+      // loads (or reloads) the wallet page.
+      const existing = window.open('', POPUP_NAME, POPUP_FEATURES);
+      const looksReusable = !!existing && !existing.closed && !!popupSessionId();
+      if (looksReusable) {
+        popupRef.current = existing;
+      } else {
+        const popup = window.open(walletConnectUrl(), POPUP_NAME, POPUP_FEATURES);
+        if (!popup) {
+          throw new Error('Popup blocked. Please allow popups for this site.');
+        }
+        popupRef.current = popup;
+        openedFreshWindow = true;
       }
-      popupRef.current = popup;
-      openedFreshWindow = true;
     } else {
       popupRef.current.focus();
     }
@@ -680,25 +708,46 @@ export function useWalletConnect(): UseWalletConnect {
       if (savedSession) {
         popupMode.current = true;
         const resumePopup = async () => {
-          if (!popupRef.current || popupRef.current.closed) {
-            const popup = window.open(
-              WALLET_URL + '/connect?origin=' + encodeURIComponent(location.origin),
-              'sphere-wallet',
-              'width=420,height=650',
-            );
-            if (!popup) throw new Error('Popup blocked');
-            popupRef.current = popup;
+          // THIS is the path a dApp page reload takes, and it must not navigate the wallet
+          // window: navigating reloads the wallet page, and the memory-only password dies with
+          // it, so merely reloading the dApp relocked the wallet. Recover the handle instead.
+          const existing =
+            popupRef.current && !popupRef.current.closed
+              ? popupRef.current
+              : window.open('', POPUP_NAME, POPUP_FEATURES);
+
+          if (existing && !existing.closed) {
+            popupRef.current = existing;
+            transportRef.current?.destroy();
+            const transport = PostMessageTransport.forClient({
+              target: existing,
+              targetOrigin: WALLET_URL,
+            });
+            transportRef.current = transport;
+            try {
+              // No waitForHostReady: a host that is already live announced once, when it came
+              // up, and does not announce again. Just resume — a live wallet answers at once.
+              await handshake(transport, { resumeSessionId: savedSession, silent: true });
+              return;
+            } catch {
+              // Either that window is not a live wallet (window.open('') hands back a blank one
+              // when the name is free) or the session is gone. Fall through and load the wallet
+              // into the very same window rather than leaving a stray blank popup behind.
+            }
           }
+
+          const popup = window.open(walletConnectUrl(), POPUP_NAME, POPUP_FEATURES);
+          if (!popup) throw new Error('Popup blocked');
+          popupRef.current = popup;
 
           transportRef.current?.destroy();
           const transport = PostMessageTransport.forClient({
-            target: popupRef.current,
+            target: popup,
             targetOrigin: WALLET_URL,
           });
           transportRef.current = transport;
 
           await waitForHostReady(5000);
-
           await handshake(transport, { resumeSessionId: savedSession, silent: true });
         };
         resumePopup()
