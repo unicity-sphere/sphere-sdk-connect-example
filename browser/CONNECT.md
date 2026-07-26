@@ -424,9 +424,6 @@ chrome carries the passive "N requests blocked — Unlock" badge. This is where 
 session-preserving lock actually pays off — the host outlives both the lock and a reload of the
 framed page.
 
-**Extension (P2)** sits in between: the host lives in the extension, so it survives the dApp
-page, but the user still unlocks in the extension's own surface.
-
 A locked wallet serves only `sphere_getIdentity` (from a frozen snapshot), `sphere_subscribe`,
 `sphere_unsubscribe` and `sphere_disconnect`. Balances, assets, tokens, fiat balance and history
 are never served and never cached — a stale balance is a dApp about to offer an unpayable spend.
