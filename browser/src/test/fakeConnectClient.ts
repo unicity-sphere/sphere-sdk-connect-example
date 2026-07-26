@@ -44,6 +44,12 @@ export class FakeConnectClient {
   static nextWalletProtocol = '2.1';
   /** ConnectResult.locked — a resume handshake that landed on a LOCKED but live wallet. */
   static nextLocked = false;
+  /**
+   * Makes the NEXT connect() reject. Models the two ways a handshake fails against a wallet
+   * that cannot serve yet: the readiness wait timing out, and the SDK's errorless empty
+   * refusal from a host built behind the lock screen.
+   */
+  static nextConnectError: Error | null = null;
 
   static reset(): void {
     FakeConnectClient.instances = [];
@@ -51,6 +57,7 @@ export class FakeConnectClient {
     FakeConnectClient.nextSessionId = 'session-1';
     FakeConnectClient.nextWalletProtocol = '2.1';
     FakeConnectClient.nextLocked = false;
+    FakeConnectClient.nextConnectError = null;
   }
 
   /** Never index the array directly — browser/tsconfig.json has noUncheckedIndexedAccess. */
@@ -87,6 +94,9 @@ export class FakeConnectClient {
     identity: PublicIdentity;
     locked?: boolean;
   }> {
+    if (FakeConnectClient.nextConnectError) {
+      throw FakeConnectClient.nextConnectError;
+    }
     this.session = FakeConnectClient.nextSessionId;
     return {
       sessionId: FakeConnectClient.nextSessionId,

@@ -262,3 +262,67 @@ describe('useWalletConnect — resume onto a locked wallet', () => {
     expect(mocks.transportDestroys).toHaveLength(0);
   });
 });
+
+describe('useWalletConnect — a connect attempt that met a locked wallet', () => {
+  /**
+   * Drives a popup attempt that FAILS while the popup stays open — the shape of every
+   * failure against a wallet that cannot serve yet. The window mock reports `closed: false`
+   * throughout, which is what the real popup does: a failed attempt is the one path that
+   * does not close it.
+   */
+  async function failedAttempt(hook: { result: { current: Hook } }) {
+    FakeConnectClient.nextConnectError = new Error('Connection rejected by wallet');
+    await act(async () => {
+      const pending = hook.result.current.connectViaPopup();
+      window.dispatchEvent(new MessageEvent('message', { data: { type: HOST_READY_TYPE } }));
+      await pending;
+    });
+    expect(hook.result.current.isConnected).toBe(false);
+    FakeConnectClient.nextConnectError = null;
+  }
+
+  it('retries itself when the wallet announces it can serve, with no second click', async () => {
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await failedAttempt(hook);
+
+    // The human unlocks; ConnectPage announces on the locked -> live re-arm. The listener is
+    // armed even though we are NOT connected — gating it on isConnected is what swallowed
+    // this and left the user clicking Connect at a wallet that was already ready.
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', { data: { type: HOST_READY_TYPE } }));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(hook.result.current.isConnected).toBe(true));
+    expect(hook.result.current.identity?.chainPubkey).toBe(FAKE_IDENTITY.chainPubkey);
+  });
+
+  it('does not block on HOST_READY when the popup is already open', async () => {
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await failedAttempt(hook);
+
+    // The user unlocks and clicks Connect again. That window has already booted and already
+    // announced, so nothing will announce a second time — waiting would hang for the full
+    // timeout, which is the reported bug. No readiness bit is remembered either: readiness
+    // is not monotonic, so a remembered bit would go stale with nothing to clear it.
+    await act(async () => {
+      await hook.result.current.connectViaPopup();
+    });
+
+    expect(hook.result.current.isConnected).toBe(true);
+  });
+
+  it('ignores the announcement that belongs to an attempt already in flight', async () => {
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+
+    await connectPopup(hook.result);
+
+    // One client: the attempt consumed its own announcement. A listener that also acted on it
+    // would build a second client for the same handshake.
+    expect(FakeConnectClient.instances).toHaveLength(1);
+    expect(hook.result.current.isConnected).toBe(true);
+  });
+});

@@ -105,6 +105,18 @@ export function useWalletConnect(): UseWalletConnect {
   useEffect(() => {
     identityRef.current = state.identity;
   }, [state.identity]);
+  // Mirrors state.isConnected for the always-armed HOST_READY listener, which is registered
+  // once and must not be torn down and rebuilt every time the connection state flips.
+  const isConnectedRef = useRef(false);
+  useEffect(() => {
+    isConnectedRef.current = state.isConnected;
+  }, [state.isConnected]);
+  // True while a popup connect attempt is running. The attempt CONSUMES the announcement
+  // itself (waitForHostReady), so the listener must stand aside or it would race the attempt
+  // and build a second client for the same handshake. Written SYNCHRONOUSLY rather than
+  // mirrored from state through an effect: the announcement can arrive in the same tick the
+  // attempt starts, long before React has flushed anything.
+  const attemptInFlightRef = useRef(false);
 
   const makeClient = useCallback(
     (transport: ConnectTransport, extra: { resumeSessionId?: string; silent?: boolean } = {}): ConnectClient =>
@@ -175,24 +187,72 @@ export function useWalletConnect(): UseWalletConnect {
     }
   }, [handshake]);
 
-  // Permanent HOST_READY listener, replacing the one-shot mount listener. It is only armed once
-  // we believe we are connected: a HOST_READY arriving before that belongs to the connect path
-  // itself (waitForHostReady), not to a host restart.
+  /**
+   * A connect attempt failed while the wallet was locked, and the wallet has just announced
+   * that it can serve again. Retry it — the user already asked to connect; making them press
+   * Connect a second time for a wallet that is now ready is the bug this closes.
+   *
+   * Silent is deliberately NOT set: if this origin has no approval yet the user must still
+   * see the consent prompt. What is skipped is only the second CLICK, never the consent.
+   */
+  const retryAfterUnlock = useCallback(async () => {
+    if (rehandshaking.current) return;
+    rehandshaking.current = true;
+    try {
+      const popup = popupRef.current;
+      if (!popup || popup.closed) return;
+      transportRef.current?.destroy();
+      const transport = PostMessageTransport.forClient({ target: popup, targetOrigin: WALLET_URL });
+      transportRef.current = transport;
+      const resumeSessionId = sessionStorage.getItem(SESSION_KEY_POPUP) ?? undefined;
+      await handshake(transport, { resumeSessionId });
+    } catch {
+      // Still not ready, or the user declined. Leave the state alone — the next announcement
+      // (or an explicit click) tries again.
+    } finally {
+      rehandshaking.current = false;
+    }
+  }, [handshake]);
+
+  // Permanent HOST_READY listener, replacing the one-shot mount listener. ALWAYS armed —
+  // never gated on isConnected.
+  //
+  // The wallet announces HOST_READY at each moment its host becomes able to complete a
+  // handshake, and a wallet that cold-starts LOCKED announces nothing until a human unlocks
+  // it. That announcement is therefore the signal that a connect attempt which failed while
+  // the wallet was locked can now succeed. Gating this listener on isConnected swallowed it:
+  // the attempt had already failed, so nothing was listening, and the user was left pressing
+  // Connect against a wallet that was ready — the reported bug.
+  //
+  //   connected     -> the wallet page restarted; resume the SAME session silently.
+  //   not connected -> a previous attempt failed against a locked wallet; the unlock is our
+  //                    cue to retry it, with no second click.
   useEffect(() => {
-    if (!state.isConnected) return;
     const handler = (event: MessageEvent) => {
       if (event.data?.type !== HOST_READY_TYPE) return;
-      void rehandshake();
+      // An attempt in flight is already waiting for exactly this message.
+      if (attemptInFlightRef.current) return;
+      if (isConnectedRef.current) {
+        void rehandshake();
+        return;
+      }
+      // Only for a popup we still hold: an announcement can only come from a host we opened.
+      if (!popupMode.current || !popupRef.current || popupRef.current.closed) return;
+      void retryAfterUnlock();
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [state.isConnected, rehandshake]);
+  }, [rehandshake, retryAfterUnlock]);
 
   /**
    * Open (or re-open) popup, create fresh transport + client, do handshake.
    * Wallet remembers approved origin so re-connect skips the approval modal.
    */
   const openPopupAndConnect = useCallback(async (): Promise<ConnectClient> => {
+    attemptInFlightRef.current = true;
+    try {
+    // Whether THIS call created the window decides whether we wait for HOST_READY.
+    let openedFreshWindow = false;
     if (!popupRef.current || popupRef.current.closed) {
       const popup = window.open(
         WALLET_URL + '/connect?origin=' + encodeURIComponent(location.origin),
@@ -203,6 +263,7 @@ export function useWalletConnect(): UseWalletConnect {
         throw new Error('Popup blocked. Please allow popups for this site.');
       }
       popupRef.current = popup;
+      openedFreshWindow = true;
     } else {
       popupRef.current.focus();
     }
@@ -214,12 +275,25 @@ export function useWalletConnect(): UseWalletConnect {
     });
     transportRef.current = transport;
 
-    await waitForHostReady();
+    // HOST_READY is announced ONCE per host, at the moment that host becomes able to serve a
+    // handshake. It is the right thing to wait for while a wallet page is still booting — and
+    // the wrong thing to wait for against a window that has already booted and already
+    // announced, which is why a second Connect used to hang for the full timeout.
+    //
+    // Deliberately NOT remembered as a "host is ready" flag: readiness is not monotonic (a
+    // wallet can lock again with no wire signal at all), so a remembered bit goes stale with
+    // nothing to clear it. Instead the handshake is simply attempted; a host that cannot
+    // serve refuses it promptly, and the always-armed listener above retries when the wallet
+    // announces it can.
+    if (openedFreshWindow) await waitForHostReady();
 
     const resumeSessionId = sessionStorage.getItem(SESSION_KEY_POPUP) ?? undefined;
     await handshake(transport, { resumeSessionId });
 
     return clientRef.current!;
+    } finally {
+      attemptInFlightRef.current = false;
+    }
   }, [handshake]);
 
   /**
