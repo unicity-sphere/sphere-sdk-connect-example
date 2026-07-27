@@ -12,7 +12,7 @@ interface Props {
   on: (event: string, handler: (data: unknown) => void) => () => void;
 }
 
-const ALL_EVENTS = [
+export const ALL_EVENTS = [
   // Transfers
   'transfer:incoming',
   'transfer:confirmed',
@@ -38,6 +38,8 @@ const ALL_EVENTS = [
   // Connection & wallet state
   'connection:changed',
   'wallet:locked',
+  'wallet:unlocked',
+  'wallet:disconnected',
   // Identity & addresses
   'identity:changed',
   'nametag:registered',
@@ -55,7 +57,7 @@ const ALL_EVENTS = [
   'groupchat:connection',
 ];
 
-const EVENT_COLORS: Record<string, string> = {
+export const EVENT_COLORS: Record<string, string> = {
   // Transfers
   'transfer:incoming': 'bg-green-500/15 text-green-400',
   'transfer:confirmed': 'bg-green-500/15 text-green-400',
@@ -80,7 +82,10 @@ const EVENT_COLORS: Record<string, string> = {
   'sync:remote-update': 'bg-white/3 text-white/55',
   // Connection & wallet state
   'connection:changed': 'bg-yellow-500/15 text-amber-400',
-  'wallet:locked': 'bg-red-500/15 text-red-400',
+  // Amber, not red: a lock is a pause, not a fatal teardown. wallet:disconnected is the red one.
+  'wallet:locked': 'bg-amber-500/15 text-amber-400',
+  'wallet:unlocked': 'bg-green-500/15 text-green-400',
+  'wallet:disconnected': 'bg-red-500/15 text-red-400',
   // Identity & addresses
   'identity:changed': 'bg-blue-500/15 text-blue-400',
   'nametag:registered': 'bg-purple-500/15 text-purple-400',

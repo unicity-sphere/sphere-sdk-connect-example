@@ -3,6 +3,7 @@ import { useWalletConnect } from './hooks/useWalletConnect';
 import { ConnectButton } from './components/ConnectButton';
 import { PageShell } from './components/layout/PageShell';
 import type { Section } from './lib/types';
+import { WalletStatusBanner } from './components/layout/WalletStatusBanner';
 
 // Query panels
 import { IdentityPanel } from './components/queries/IdentityPanel';
@@ -67,7 +68,7 @@ export default function App() {
   const panels: Record<Section, React.ReactNode> = {
     'identity': <IdentityPanel query={query} />,
     'assets': <AssetsPanel query={query} />,
-    'balance': <BalancePanel query={query} />,
+    'balance': <BalancePanel query={query} unlockEpoch={wallet.unlockEpoch} />,
     'tokens': <TokensPanel query={query} />,
     'history': <HistoryPanel query={query} />,
     'resolve': <ResolvePanel query={query} />,
@@ -77,7 +78,7 @@ export default function App() {
     'receive': <ReceivePanel intent={intent} />,
     'sign-message': <SignMessagePanel intent={intent} />,
     'mint': <MintPanel intent={intent} />,
-    'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} />,
+    'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} isWalletLocked={wallet.isWalletLocked} unlockEpoch={wallet.unlockEpoch} />,
     'events': <EventLogPanel on={on} />,
     'docs': <DocsPanel />,
   };
@@ -86,9 +87,16 @@ export default function App() {
     <PageShell
       identity={wallet.identity!}
       onDisconnect={wallet.disconnect}
+      isWalletLocked={wallet.isWalletLocked}
       section={section}
       onSectionChange={setSection}
     >
+      <WalletStatusBanner
+        isWalletLocked={wallet.isWalletLocked}
+        walletChanged={wallet.walletChanged}
+        walletProtocol={wallet.walletProtocol}
+        onFocusWallet={wallet.focusWallet}
+      />
       {panels[section]}
     </PageShell>
   );

@@ -1,7 +1,8 @@
 import { useCallback, useState } from 'react';
 import { autoConnect } from '@unicitylabs/sphere-sdk/connect/browser';
 import type { AutoConnectResult } from '@unicitylabs/sphere-sdk/connect/browser';
-import { ERROR_CODES, INTENT_ACTIONS, PERMISSION_SCOPES, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { INTENT_ACTIONS, PERMISSION_SCOPES, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { describeError, isWalletLocked } from './errors';
 
 /**
  * Backend-auth example frontend — brokers a Sphere wallet signature to the
@@ -85,21 +86,6 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** Connect intent/handshake errors carry a numeric `.code` (see ConnectError in
- *  @unicitylabs/sphere-sdk/connect). Duck-type on `.code` rather than `instanceof` —
- *  the SDK's own ConnectClient comment flags instanceof as unsafe across bundles. */
-function isConnectErrorCode(err: unknown, code: number): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === code;
-}
-
-function describeError(err: unknown): string {
-  if (isConnectErrorCode(err, ERROR_CODES.USER_REJECTED) || isConnectErrorCode(err, ERROR_CODES.INTENT_CANCELLED)) {
-    return 'You declined the signature request in your wallet.';
-  }
-  if (err instanceof Error) return err.message;
-  return 'Something went wrong.';
-}
-
 function truncate(value: string, head = 18, tail = 10): string {
   return value.length <= head + tail + 1 ? value : `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
@@ -159,10 +145,14 @@ export default function App() {
     } catch (err) {
       setError(describeError(err));
       setStep('error');
-      // Best-effort cleanup so a retry starts from a fresh connection rather than
-      // a half-open transport/popup left over from the failed attempt.
-      await auto?.disconnect().catch(() => {});
-      setConnection(null);
+      // A locked wallet is NOT a dead connection: the host preserved this session and will push
+      // wallet:unlocked on it. Disconnecting here would throw away a live session and force a
+      // fresh approval for nothing. Everything else still gets the best-effort cleanup so a
+      // retry starts from a fresh connection rather than a half-open transport/popup.
+      if (!isWalletLocked(err)) {
+        await auto?.disconnect().catch(() => {});
+        setConnection(null);
+      }
     }
   }, []);
 

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: browser
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: browser/package-lock.json
+      # npm install, not npm ci: the lockfile carries a file: link to the local SDK
+      # until the last commit on this branch restores the published pin.
+      - run: npm install
+      - run: npm test
+      # tsc -b covers src/**, which now includes the test files.
+      - run: npx tsc -b
+
+  nodejs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nodejs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: nodejs/package-lock.json
+      - run: npm install
+      - run: npm test
+      - run: npx tsc --noEmit
+
+  backend-auth-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-auth/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend-auth/frontend/package-lock.json
+      - run: npm install
+      - run: npm test
+      - run: npx tsc -b

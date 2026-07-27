@@ -2,3 +2,6 @@ node_modules
 dist
 .vite
 *.tsbuildinfo
+
+# Local-only design docs: specs and plans never ship in the repo.
+docs/superpowers/

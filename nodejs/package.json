@@ -5,16 +5,18 @@
   "type": "module",
   "scripts": {
     "server": "npx tsx src/mock-wallet-server.ts",
-    "client": "npx tsx src/index.ts"
+    "client": "npx tsx src/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@unicitylabs/sphere-sdk": "0.12.0",
+    "@unicitylabs/sphere-sdk": "0.13.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.19.0",
-    "typescript": "~5.6.0"
+    "typescript": "~5.6.0",
+    "vitest": "^4.1.10"
   }
 }

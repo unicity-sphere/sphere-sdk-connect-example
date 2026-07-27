@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RPC_METHODS } from '@unicitylabs/sphere-sdk/connect';
 import { Button } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
@@ -13,9 +13,18 @@ interface BalanceItem {
 
 interface Props {
   query: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
+  /**
+   * Bumps once per unlock that returned the SAME wallet (useWalletConnect compares the
+   * chainPubkey in the wallet:unlocked payload before bumping it).
+   *
+   * This is the reference retry-after-unlock: a READ is safe to re-issue automatically. An
+   * intent never is — it moves money and would fire with no fresh user gesture, at the exact
+   * moment the wallet came back — which is why only query panels take this prop.
+   */
+  unlockEpoch: number;
 }
 
-export function BalancePanel({ query }: Props) {
+export function BalancePanel({ query, unlockEpoch }: Props) {
   const [balances, setBalances] = useState<BalanceItem[]>([]);
   const [fiat, setFiat] = useState<number | null>(null);
   const [raw, setRaw] = useState<unknown>(null);
@@ -39,6 +48,13 @@ export function BalancePanel({ query }: Props) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (unlockEpoch === 0) return; // no unlock yet — never fetch on mount
+    void execute();
+    // Deliberately keyed on unlockEpoch alone: execute() is re-created on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlockEpoch]);
 
   return (
     <div className="admin-card p-5">

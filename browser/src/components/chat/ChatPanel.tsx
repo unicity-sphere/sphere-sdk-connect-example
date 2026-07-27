@@ -9,9 +9,18 @@ interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
   on: (event: string, handler: (data: unknown) => void) => () => void;
   walletPubkey: string;
+  /**
+   * The wallet is locked. Reads are NOT served while locked — only identity, subscribe,
+   * unsubscribe and disconnect are — so a panel that keeps fetching just collects
+   * WALLET_LOCKED (4009) refusals and drives up the wallet's "N requests blocked" badge.
+   * A dApp should render its locked state and wait, not poll.
+   */
+  isWalletLocked: boolean;
+  /** Bumps once per unlock that returned the SAME wallet — the cue to reload. */
+  unlockEpoch: number;
 }
 
-export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
+export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unlockEpoch }: Props) {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -51,8 +60,11 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
   }, [query, cacheNametag]);
 
   useEffect(() => {
+    // Never fetch behind the lock screen: the host refuses every read with 4009 and each
+    // refusal lights up the wallet's blocked-request badge. unlockEpoch brings us back.
+    if (isWalletLocked) return;
     loadConversations();
-  }, [loadConversations]);
+  }, [loadConversations, isWalletLocked, unlockEpoch]);
 
   // Load messages for selected peer
   const loadMessages = useCallback(async (peerPubkey: string) => {
@@ -151,6 +163,9 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
   // Real-time incoming DMs
   useEffect(() => {
     const unsub = on('message:dm', (data) => {
+      // Belt and braces: the wallet suspends event delivery while locked and re-arms the
+      // subscriptions on unlock, but a handler that fires anyway must not issue reads.
+      if (isWalletLocked) return;
       const dm = data as DirectMessage;
       // Cache nametags from real-time messages
       if (dm.senderPubkey !== walletPubkey) cacheNametag(dm.senderPubkey, dm.senderNametag);
@@ -165,7 +180,7 @@ export function ChatPanel({ query, intent, on, walletPubkey }: Props) {
       loadConversations();
     });
     return unsub;
-  }, [on, selectedPeer, query, walletPubkey, loadConversations, cacheNametag]);
+  }, [on, selectedPeer, query, walletPubkey, loadConversations, cacheNametag, isWalletLocked]);
 
   // Auto-scroll on new messages
   useEffect(() => {
