@@ -334,11 +334,15 @@ describe('locked gate over a real ConnectHost', () => {
     });
   });
 
-  it('refuses sphere_subscribe for an auto-pushed event name', async () => {
+  it('answers sphere_subscribe for an auto-pushed event name with SUCCESS', async () => {
     const { client } = await connectPair();
-    // Sphere.on() accepts any string and never emits for these names, so a subscribe that
-    // "succeeded" would deliver nothing forever.
-    await expect(client.query(RPC_METHODS.SUBSCRIBE, { event: WALLET_EVENTS.UNLOCKED })).rejects.toBeTruthy();
+    // The host pushes these unconditionally, so "you are subscribed" is true — it is just
+    // satisfied by a different mechanism than Sphere.on(), which accepts any string and never
+    // emits for them. This used to throw, which silently broke every dApp built before 2.1:
+    // client.on('wallet:locked', …) fires sphere_subscribe fire-and-forget, and on 2.0 that
+    // call succeeded.
+    await expect(client.query(RPC_METHODS.SUBSCRIBE, { event: WALLET_EVENTS.UNLOCKED }))
+      .resolves.toEqual({ subscribed: true, event: WALLET_EVENTS.UNLOCKED });
   });
 
   it('reports protocol 2.1 and ships no client-side retry surface in Release 1', async () => {

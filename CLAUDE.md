@@ -126,10 +126,9 @@ Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubke
 
 ## Dependencies
 
-All five subprojects pin the same sphere-sdk version. This branch develops against the sibling
-`sphere-sdk` checkout; the published pin is restored when the graceful-lock release is cut:
+All five packages pin the same published SDK version:
 ```json
-"@unicitylabs/sphere-sdk": "file:../../sphere-sdk"
+"@unicitylabs/sphere-sdk": "0.13.0"
 ```
 
 - **Browser / backend-auth frontend:** React 19, Vite 7

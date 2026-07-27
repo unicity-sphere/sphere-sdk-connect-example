@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@unicitylabs/sphere-sdk": "file:../../../sphere-sdk",
+    "@unicitylabs/sphere-sdk": "0.13.0",
     "react": "^19.1.1",
     "react-dom": "^19.2.4"
   },

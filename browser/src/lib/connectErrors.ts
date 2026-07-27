@@ -19,6 +19,16 @@ export type RequestErrorKind =
   | 'locked'
   /** The connection is genuinely gone. Drop client, transport and saved session id. */
   | 'teardown'
+  /**
+   * INTENT_OUTCOME_UNKNOWN (4201). The wallet took the intent and the answer was lost — a host
+   * deadline, a lock, a logout. **The money may or may not have moved.**
+   *
+   * Kept apart from 'other' precisely so a UI cannot treat it as an ordinary refusal: the
+   * natural reaction to "failed" is to re-enable the button, and that is the one thing that
+   * must not happen here. Reconcile out of band — poll the recipient, your backend, the
+   * aggregator — and only then decide.
+   */
+  | 'outcome-unknown'
   /** A typed refusal the session survives (permission, rejection, rate limit, …). Surface it. */
   | 'other';
 
@@ -64,6 +74,7 @@ export function classifyRequestError(err: unknown): RequestErrorKind {
   if (code !== undefined) {
     // A coded error is authoritative — never second-guess it with the message text.
     if (code === ERROR_CODES.WALLET_LOCKED) return 'locked';
+    if (code === ERROR_CODES.INTENT_OUTCOME_UNKNOWN) return 'outcome-unknown';
     if (code === ERROR_CODES.NOT_CONNECTED || code === ERROR_CODES.SESSION_EXPIRED) return 'teardown';
     return 'other';
   }

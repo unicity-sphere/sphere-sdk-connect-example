@@ -523,6 +523,44 @@ try {
 }
 ```
 
+### Spending: the one code you must not retry on
+
+`INTENT_OUTCOME_UNKNOWN` (4201) means the wallet took your intent and the answer was lost — a
+host deadline, a lock, a logout. **The money may or may not have moved.** It is the only error
+where the natural reaction, re-enabling the button, is the wrong one.
+
+```typescript
+import { ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
+import { classifyRequestError } from './lib/connectErrors';
+
+try {
+  await wallet.intent(INTENT_ACTIONS.SEND, { to, amount, coinId });
+} catch (err) {
+  switch (classifyRequestError(err)) {
+    case 'outcome-unknown':
+      // Do NOT offer a retry. Reconcile first — poll the recipient, your backend, the
+      // aggregator — and only then decide whether anything still needs sending.
+      showPendingReconciliation();
+      break;
+    case 'locked':
+      // 4009 — the session is alive; the wallet is just locked. Safe to retry after unlock.
+      setWalletLocked(true);
+      break;
+    case 'teardown':
+      clearSession();
+      break;
+    default:
+      // A specific, truthful refusal: USER_REJECTED, INSUFFICIENT_BALANCE, TRANSFER_FAILED…
+      showError(err);
+  }
+}
+```
+
+`USER_REJECTED` (4003) is different and IS retryable: the user declined before anything was
+submitted. The wallet is responsible for never reporting a cancel once a transfer is on the
+wire, and the host downgrades `WALLET_LOCKED` / `NOT_CONNECTED` to 4201 if a wallet answers an
+accepted intent with them.
+
 ---
 
 ## Running the Example

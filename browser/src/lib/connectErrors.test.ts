@@ -85,3 +85,18 @@ describe('lockedData', () => {
     expect(lockedData(new Error('boom'))).toBeUndefined();
   });
 });
+
+describe('INTENT_OUTCOME_UNKNOWN is its own kind', () => {
+  it('is not lumped in with ordinary refusals', () => {
+    const err = new ConnectError('unknown', ERROR_CODES.INTENT_OUTCOME_UNKNOWN);
+
+    // 'other' would be read by a panel as "it failed, let them press Send again" — which is
+    // the one reaction this code exists to forbid, because the transfer may have gone through.
+    expect(classifyRequestError(err)).toBe('outcome-unknown');
+  });
+
+  it('does not tear the connection down — the session is fine, only the answer was lost', () => {
+    const err = new ConnectError('unknown', ERROR_CODES.INTENT_OUTCOME_UNKNOWN);
+    expect(classifyRequestError(err)).not.toBe('teardown');
+  });
+});
