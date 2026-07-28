@@ -464,3 +464,33 @@ describe('useWalletConnect — a dApp reload must not reload the wallet', () => 
     expect(opened[0]).toBe('');
   });
 });
+
+describe('useWalletConnect — a refused handshake says which version to move to', () => {
+  it('surfaces the SDK floor the wallet compared, not just its bare message', async () => {
+    // Exactly what a 0.13 wallet sends a 0.11 app: the numbers are in `data`, the message
+    // (from a wallet on an older SDK) names none of them.
+    FakeConnectClient.nextConnectError = new ConnectError(
+      'SDK version below the required minimum',
+      ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION,
+      { reason: 'protocol_incompatible', requiredSdk: '0.12.0-0', actualSdk: '0.11.9' },
+    );
+
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+
+    expect(hook.result.current.isConnected).toBe(false);
+    expect(hook.result.current.error).toContain('0.11.9');
+    expect(hook.result.current.error).toContain('0.12.0-0');
+  });
+
+  it('leaves an ordinary failure message alone', async () => {
+    FakeConnectClient.nextConnectError = new Error('Connection rejected by wallet');
+
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+
+    expect(hook.result.current.error).toBe('Connection rejected by wallet');
+  });
+});
