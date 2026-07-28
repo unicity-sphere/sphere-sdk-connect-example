@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@unicitylabs/sphere-sdk": "0.13.0",
+    "@unicitylabs/sphere-sdk": "0.13.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {
