@@ -4,7 +4,7 @@ import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sd
 import type { ConnectTransport, PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
 import type { PermissionScope } from '@unicitylabs/sphere-sdk/connect';
 import { isInIframe, hasExtension } from '../lib/detection';
-import { classifyRequestError } from '../lib/connectErrors';
+import { classifyRequestError, describeConnectFailure } from '../lib/connectErrors';
 import { supportsGracefulLock } from '../lib/walletProtocol';
 
 export interface WalletConnectState {
@@ -378,7 +378,7 @@ export function useWalletConnect(): UseWalletConnect {
       transportRef.current = transport;
       await handshake(transport);
     } catch (err) {
-      setState((s) => ({ ...s, isConnecting: false, error: err instanceof Error ? err.message : 'Connection failed' }));
+      setState((s) => ({ ...s, isConnecting: false, error: describeConnectFailure(err) }));
     }
   }, [handshake]);
 
@@ -399,7 +399,7 @@ export function useWalletConnect(): UseWalletConnect {
         await openPopupAndConnect();
       }
     } catch (err) {
-      setState((s) => ({ ...s, isConnecting: false, error: err instanceof Error ? err.message : 'Connection failed' }));
+      setState((s) => ({ ...s, isConnecting: false, error: describeConnectFailure(err) }));
     }
   }, [openPopupAndConnect, handshake]);
 
@@ -425,7 +425,7 @@ export function useWalletConnect(): UseWalletConnect {
       setState((s) => ({
         ...s,
         isConnecting: false,
-        error: err instanceof Error ? err.message : 'Connection failed',
+        error: describeConnectFailure(err),
       }));
     }
   }, [connectViaExtension, connectViaPopup, handshake]);

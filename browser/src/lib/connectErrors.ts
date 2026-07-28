@@ -68,6 +68,71 @@ export function lockedData(err: unknown): WalletLockedData | undefined {
 const CODELESS_TEARDOWN =
   /\b(not connected|disconnected|connection timeout|query timeout|intent timeout|popup was closed)\b/i;
 
+/** A non-empty string field of an untrusted `data` bag, or null. */
+function text(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+/** `mainnet (1)` / `network 4`, or null when the peer sent no usable descriptor. */
+function describeNetwork(value: unknown): string | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { id, name } = value as { id?: unknown; name?: unknown };
+  if (typeof id !== 'number') return null;
+  const label = text(name);
+  return label ? `${label} (${id})` : `network ${id}`;
+}
+
+/**
+ * Connect-screen copy for a failed handshake.
+ *
+ * The compatibility gate publishes the versions it compared in `error.data` —
+ * `requiredSdk`/`actualSdk` for the npm floor, `clientProtocol`/`requiredProtocol` for the
+ * protocol floor, `clientNetwork`/`walletNetwork` for the network check. A wallet on an older
+ * SDK sends a `message` that names NONE of them ("SDK version below the required minimum"),
+ * so rendering `err.message` alone tells a developer to upgrade without saying to what.
+ * Read `data` and say it. When the gate sent no versions the wallet's own message is already
+ * the best available text — pass it through rather than inventing worse copy.
+ *
+ * Every field is read defensively: `data` crosses postMessage from a peer on an SDK version
+ * this app does not control.
+ */
+export function describeConnectFailure(err: unknown): string {
+  const code = connectErrorCode(err);
+  const raw = err instanceof Error ? err.message : null;
+  const fallback = raw ?? 'Connection failed';
+
+  if (code !== ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION && code !== ERROR_CODES.INCOMPATIBLE_NETWORK) {
+    return fallback;
+  }
+
+  const data = (err as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) return fallback;
+  const bag = data as Record<string, unknown>;
+
+  if (code === ERROR_CODES.INCOMPATIBLE_NETWORK) {
+    const client = describeNetwork(bag.clientNetwork);
+    const wallet = describeNetwork(bag.walletNetwork);
+    return client && wallet
+      ? `This app targets ${client}, but the wallet is on ${wallet}.`
+      : fallback;
+  }
+
+  const requiredSdk = text(bag.requiredSdk);
+  if (requiredSdk) {
+    const actualSdk = text(bag.actualSdk);
+    const has = actualSdk ? `is built on sphere-sdk ${actualSdk}` : 'reported no sphere-sdk version';
+    return `This app ${has} — the wallet requires ${requiredSdk} or newer. Upgrade @unicitylabs/sphere-sdk and rebuild.`;
+  }
+
+  const clientProtocol = text(bag.clientProtocol);
+  const requiredProtocol = text(bag.requiredProtocol);
+  if (clientProtocol && requiredProtocol) {
+    return `This app speaks Connect protocol ${clientProtocol} — the wallet requires ${requiredProtocol} or newer. Upgrade @unicitylabs/sphere-sdk and rebuild.`;
+  }
+
+  return fallback;
+}
+
 export function classifyRequestError(err: unknown): RequestErrorKind {
   const code = connectErrorCode(err);
 
