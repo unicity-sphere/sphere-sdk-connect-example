@@ -6,10 +6,11 @@
   "scripts": {
     "server": "npx tsx src/mock-wallet-server.ts",
     "client": "npx tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@unicitylabs/sphere-sdk": "0.13.1",
+    "@unicitylabs/sphere-sdk": "0.14.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {

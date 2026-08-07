@@ -12,30 +12,39 @@ interface Props {
   on: (event: string, handler: (data: unknown) => void) => () => void;
 }
 
+/**
+ * The events this demo subscribes to, using the CURRENT sphere-sdk 0.14 names.
+ *
+ * The payments-v2 flip renamed most of the money-side events:
+ *   transfer:confirmed + transfer:delivery_pending + transfer:failed -> transfer:updated
+ *   split:checkpoint-stuck / delivery:undeliverable / delivery:deferred -> transfer:attention
+ *   sync:*                                                            -> inventory:updated
+ *   realtime:status + storage:degraded                                -> connection:status
+ *   payment_request:paid / :rejected / :expired                       -> payment_request:updated
+ *
+ * The old names still resolve — a wallet host re-emits every one of them from the new event
+ * through a compatibility adapter, so a dApp built before 0.14 keeps working. New code should
+ * use the names below; they are what the wallet actually emits.
+ */
 export const ALL_EVENTS = [
   // Transfers
   'transfer:incoming',
-  'transfer:confirmed',
-  'transfer:failed',
+  'transfer:updated',
+  'transfer:attention',
+  // Inventory & history
+  'inventory:updated',
+  'history:updated',
   // Payment requests
   'payment_request:incoming',
-  'payment_request:accepted',
-  'payment_request:rejected',
-  'payment_request:paid',
-  'payment_request:response',
+  'payment_request:updated',
   // Messages
   'message:dm',
   'message:read',
   'message:typing',
   'composing:started',
   'message:broadcast',
-  // Sync
-  'sync:started',
-  'sync:completed',
-  'sync:provider',
-  'sync:error',
-  'sync:remote-update',
   // Connection & wallet state
+  'connection:status',
   'connection:changed',
   'wallet:locked',
   'wallet:unlocked',
@@ -60,27 +69,23 @@ export const ALL_EVENTS = [
 export const EVENT_COLORS: Record<string, string> = {
   // Transfers
   'transfer:incoming': 'bg-green-500/15 text-green-400',
-  'transfer:confirmed': 'bg-green-500/15 text-green-400',
-  'transfer:failed': 'bg-red-500/15 text-red-400',
+  'transfer:updated': 'bg-green-500/15 text-green-400',
+  // Amber: "needs a look", not "failed". Never auto-retry a send on one of these.
+  'transfer:attention': 'bg-amber-500/15 text-amber-400',
+  // Inventory & history
+  'inventory:updated': 'bg-white/3 text-white/55',
+  'history:updated': 'bg-white/3 text-white/55',
   // Payment requests
   'payment_request:incoming': 'bg-orange-500/10 text-orange-400',
-  'payment_request:accepted': 'bg-green-500/15 text-green-400',
-  'payment_request:rejected': 'bg-red-500/15 text-red-400',
-  'payment_request:paid': 'bg-green-500/15 text-green-400',
-  'payment_request:response': 'bg-orange-500/10 text-orange-400',
+  'payment_request:updated': 'bg-orange-500/10 text-orange-400',
   // Messages
   'message:dm': 'bg-indigo-500/15 text-indigo-400',
   'message:read': 'bg-indigo-500/15 text-indigo-400',
   'message:typing': 'bg-indigo-500/15 text-indigo-400',
   'composing:started': 'bg-indigo-500/15 text-indigo-400',
   'message:broadcast': 'bg-indigo-500/15 text-indigo-400',
-  // Sync
-  'sync:started': 'bg-white/3 text-white/55',
-  'sync:completed': 'bg-white/3 text-white/55',
-  'sync:provider': 'bg-white/3 text-white/55',
-  'sync:error': 'bg-red-500/15 text-red-400',
-  'sync:remote-update': 'bg-white/3 text-white/55',
   // Connection & wallet state
+  'connection:status': 'bg-yellow-500/15 text-amber-400',
   'connection:changed': 'bg-yellow-500/15 text-amber-400',
   // Amber, not red: a lock is a pause, not a fatal teardown. wallet:disconnected is the red one.
   'wallet:locked': 'bg-amber-500/15 text-amber-400',
@@ -136,7 +141,9 @@ export function EventLogPanel({ on }: Props) {
         <h2 className="text-lg font-semibold text-white">Event Log</h2>
         <span className="text-[10px] font-mono text-purple-400 bg-purple-500/15 px-2 py-0.5 rounded">events</span>
       </div>
-      <p className="text-xs text-white/45 mb-4">Real-time wallet events ({ALL_EVENTS.length} subscribed)</p>
+      <p className="text-xs text-white/45 mb-4">
+        Real-time wallet events ({ALL_EVENTS.length} subscribed) — sphere-sdk 0.14 names
+      </p>
 
       <div className="flex items-center gap-2 mb-3">
         <CustomSelect

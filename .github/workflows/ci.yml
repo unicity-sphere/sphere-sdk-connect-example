@@ -59,3 +59,35 @@ jobs:
       - run: npm install
       - run: npm test
       - run: npx tsc -b
+
+  bot:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+      - run: npm install
+      - run: npm test
+      - run: npm run typecheck
+
+  backend-auth-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend-auth/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend-auth/backend/package-lock.json
+      - run: npm install
+      - run: npm test
+      - run: npm run typecheck

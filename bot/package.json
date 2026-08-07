@@ -8,10 +8,11 @@
   },
   "scripts": {
     "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@unicitylabs/sphere-sdk": "0.13.1",
+    "@unicitylabs/sphere-sdk": "0.14.1",
     "dotenv": "^17.4.2",
     "ws": "^8.21.1"
   },

@@ -2,18 +2,21 @@
  * Pure coin/amount helpers for the own-wallet bot example.
  *
  * - `toBaseUnits` converts a human-readable decimal amount (e.g. "1.5") into
- *   the integer base-unit string the SDK's `payments.send` / `mintFungibleToken`
- *   expect. It is string-based and exact — never routes through `Number`/
- *   `parseFloat`, which lose precision for high-decimal (e.g. 18-decimal) tokens.
+ *   the integer base-unit string `payments.send` expects (`payments.mint` wants
+ *   the same value as a `bigint` — wrap it in `BigInt(...)`). It is string-based
+ *   and exact — never routes through `Number`/`parseFloat`, which lose precision
+ *   for high-decimal (e.g. 18-decimal) tokens.
+ * - `fromBaseUnits` is the inverse: it renders a base-unit integer string (what
+ *   `Asset.totalAmount` and `HistoryEntry.amount` carry) back as a human decimal.
  * - `resolveCoin` accepts either a 64-hex coinId or a symbol (e.g. "UCT") and
  *   resolves it to `{ coinId, decimals }` via the SDK's `TokenRegistry` singleton.
  *
- * TokenRegistry methods used here are verified against
- * `sphere-sdk/registry/TokenRegistry.ts` (0.11.14 source):
- *   - `TokenRegistry.getInstance()`               — TokenRegistry.ts:128
- *   - `getDefinition(coinId): TokenDefinition | undefined`      — TokenRegistry.ts:460
- *   - `getDefinitionBySymbol(symbol): TokenDefinition | undefined` — TokenRegistry.ts:470
- *   - `getCoinIdBySymbol(symbol): string | undefined`           — TokenRegistry.ts:581
+ * TokenRegistry methods used here, verified against `@unicitylabs/sphere-sdk`
+ * **0.14.1** (the version this package pins):
+ *   - `TokenRegistry.getInstance()`
+ *   - `getDefinition(coinId): TokenDefinition | undefined`
+ *   - `getDefinitionBySymbol(symbol): TokenDefinition | undefined`
+ *   - `getCoinIdBySymbol(symbol): string | undefined`
  */
 import { TokenRegistry } from '@unicitylabs/sphere-sdk';
 
@@ -49,6 +52,33 @@ export function toBaseUnits(human: string, decimals: number): string {
   const combined = intPart + fracPart.padEnd(decimals, '0');
   const normalized = combined.replace(/^0+(?=\d)/, '');
   return normalized;
+}
+
+/**
+ * Render an integer base-unit string as a human decimal — the inverse of
+ * {@link toBaseUnits}. Exact string arithmetic, no `Number` anywhere: a
+ * balance of 10^20 base units on an 18-decimal coin exceeds `Number.MAX_SAFE_INTEGER`.
+ *
+ * Trailing fractional zeros are trimmed, so 1500000/6 renders as "1.5" and
+ * 1000000/6 as "1".
+ *
+ * @param base - Non-negative integer string, e.g. "1500000".
+ * @param decimals - Number of base-unit decimal places for the coin.
+ * @throws if `base` isn't a non-negative integer string.
+ */
+export function fromBaseUnits(base: string, decimals: number): string {
+  if (!Number.isInteger(decimals) || decimals < 0) {
+    throw new Error(`Invalid decimals: ${decimals}`);
+  }
+  if (!/^\d+$/.test(base)) {
+    throw new Error(`Invalid base-unit amount "${base}": expected a non-negative integer string`);
+  }
+  if (decimals === 0) return base.replace(/^0+(?=\d)/, '');
+
+  const padded = base.padStart(decimals + 1, '0');
+  const intPart = padded.slice(0, padded.length - decimals).replace(/^0+(?=\d)/, '');
+  const fracPart = padded.slice(padded.length - decimals).replace(/0+$/, '');
+  return fracPart ? `${intPart}.${fracPart}` : intPart;
 }
 
 /** Resolved coin identity: canonical hex coinId + its decimal places. */

@@ -3,73 +3,68 @@
  *
  * Lives in its own module so a test can construct a ConnectHost around it without importing
  * mock-wallet-server.ts, which starts a WebSocket server as a side effect of being imported.
+ *
+ * It mirrors the shape a REAL sphere-sdk 0.14 wallet hands to `ConnectHost`: `payments` is the
+ * payments-v2 facade (`assets()` / `tokens()` / `history()`), and `paymentsV2` is the same
+ * object — the deprecated alias the host reads to decide it is talking to a v2 wallet.
+ *
+ * The host only ever reads those three members plus `identity`, `resolve`, `on` and
+ * `communications`, so this mock implements exactly those. Money movement never reaches the
+ * facade in a Connect wallet: it arrives as an intent and is answered by `onIntent`.
+ *
+ * Wire mapping the host performs on top of this (dApps see it, so it's worth knowing):
+ *   sphere_getBalance / sphere_getAssets -> assets(coinId?)
+ *   sphere_getFiatBalance                -> sum of assets()[].fiatValueUsd
+ *   sphere_getTokens                     -> tokens({ coinId? })
+ *   sphere_getHistory                    -> history() pages, flattened to one entry array
  */
 const now = Date.now();
 
-export const mockSphere = {
-  networkId: 4,
-  identity: {
-    chainPubkey: '02abc123def456789012345678901234567890123456789012345678901234567890',
-    directAddress: 'DIRECT://abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-    nametag: 'alice',
-  },
-  payments: {
-    getBalance: (_coinId?: string) => [
-      {
-        coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token', decimals: 8,
-        totalAmount: '500000000', tokenCount: 3,
-        confirmedAmount: '300000000', unconfirmedAmount: '200000000',
-        confirmedTokenCount: 2, unconfirmedTokenCount: 1,
-      },
-      {
-        coinId: 'USDU', symbol: 'USDU', name: 'USD Unicity', decimals: 6,
-        totalAmount: '1000000000', tokenCount: 1,
-        confirmedAmount: '1000000000', unconfirmedAmount: '0',
-        confirmedTokenCount: 1, unconfirmedTokenCount: 0,
-      },
-    ],
-    getAssets: async (_coinId?: string) => [
-      {
-        coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token', decimals: 8,
-        iconUrl: null, totalAmount: '500000000', tokenCount: 3,
-        confirmedAmount: '300000000', unconfirmedAmount: '200000000',
-        confirmedTokenCount: 2, unconfirmedTokenCount: 1,
-        priceUsd: 0.051, priceEur: 0.047, change24h: 2.4,
-        fiatValueUsd: 2.55, fiatValueEur: 2.35,
-      },
-      {
-        coinId: 'USDU', symbol: 'USDU', name: 'USD Unicity', decimals: 6,
-        iconUrl: null, totalAmount: '1000000000', tokenCount: 1,
-        confirmedAmount: '1000000000', unconfirmedAmount: '0',
-        confirmedTokenCount: 1, unconfirmedTokenCount: 0,
-        priceUsd: 1.0, priceEur: 0.92, change24h: 0.01,
-        fiatValueUsd: 1000.0, fiatValueEur: 920.0,
-      },
-    ],
-    getFiatBalance: async () => 1002.55,
-    getTokens: (_filter?: unknown) => [
-      {
-        id: 'tok-abc123def456', coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token',
-        decimals: 8, amount: '200000000', status: 'confirmed',
-        createdAt: now - 86400000, updatedAt: now - 3600000,
-      },
-      {
-        id: 'tok-789ghi012jkl', coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token',
-        decimals: 8, amount: '100000000', status: 'confirmed',
-        createdAt: now - 43200000, updatedAt: now - 7200000,
-      },
-      {
-        id: 'tok-mno345pqr678', coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token',
-        decimals: 8, amount: '200000000', status: 'submitted',
-        createdAt: now - 1800000, updatedAt: now - 600000,
-      },
-      {
-        id: 'tok-stu901vwx234', coinId: 'USDU', symbol: 'USDU', name: 'USD Unicity',
-        decimals: 6, amount: '1000000000', status: 'confirmed',
-        createdAt: now - 172800000, updatedAt: now - 86400000,
-      },
-    ],
-    getHistory: () => [
+const payments = {
+  assets: async (_coinId?: string) => [
+    {
+      coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token', decimals: 8,
+      iconUrl: null, totalAmount: '500000000', tokenCount: 3,
+      confirmedAmount: '300000000', unconfirmedAmount: '200000000',
+      confirmedTokenCount: 2, unconfirmedTokenCount: 1,
+      priceUsd: 0.051, priceEur: 0.047, change24h: 2.4,
+      fiatValueUsd: 2.55, fiatValueEur: 2.35,
+    },
+    {
+      coinId: 'USDU', symbol: 'USDU', name: 'USD Unicity', decimals: 6,
+      iconUrl: null, totalAmount: '1000000000', tokenCount: 1,
+      confirmedAmount: '1000000000', unconfirmedAmount: '0',
+      confirmedTokenCount: 1, unconfirmedTokenCount: 0,
+      priceUsd: 1.0, priceEur: 0.92, change24h: 0.01,
+      fiatValueUsd: 1000.0, fiatValueEur: 920.0,
+    },
+  ],
+  tokens: (_filter?: { coinId?: string }) => [
+    {
+      id: 'tok-abc123def456', coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token',
+      decimals: 8, amount: '200000000', status: 'confirmed',
+      createdAt: now - 86400000, updatedAt: now - 3600000,
+    },
+    {
+      id: 'tok-789ghi012jkl', coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token',
+      decimals: 8, amount: '100000000', status: 'confirmed',
+      createdAt: now - 43200000, updatedAt: now - 7200000,
+    },
+    {
+      id: 'tok-mno345pqr678', coinId: 'UCT', symbol: 'UCT', name: 'Unicity Token',
+      decimals: 8, amount: '200000000', status: 'submitted',
+      createdAt: now - 1800000, updatedAt: now - 600000,
+    },
+    {
+      id: 'tok-stu901vwx234', coinId: 'USDU', symbol: 'USDU', name: 'USD Unicity',
+      decimals: 6, amount: '1000000000', status: 'confirmed',
+      createdAt: now - 172800000, updatedAt: now - 86400000,
+    },
+  ],
+  // `history()` is PAGED in v2. One page is enough here: `more: false` plus a null
+  // cursor is what ends the host's "fetch every page, flatten" loop.
+  history: async (_page?: { before?: string; limit?: number }) => ({
+    entries: [
       {
         id: 'h1', type: 'SENT', amount: '100000000', coinId: 'UCT', symbol: 'UCT',
         timestamp: now - 3600000, recipientNametag: 'bob', transferId: 'xfer-001',
@@ -84,7 +79,22 @@ export const mockSphere = {
         timestamp: now - 86400000,
       },
     ],
+    more: false,
+    cursor: null,
+  }),
+};
+
+export const mockSphere = {
+  networkId: 4,
+  identity: {
+    chainPubkey: '02abc123def456789012345678901234567890123456789012345678901234567890',
+    directAddress: 'DIRECT://abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
+    nametag: 'alice',
   },
+  payments,
+  // The deprecated alias a 0.14 Sphere still exposes. ConnectHost reads it to detect a v2
+  // wallet and route sphere_getBalance/-Assets/-Tokens/-History through the facade above.
+  paymentsV2: payments,
   resolve: async (identifier: string) => ({
     nametag: identifier.replace('@', ''),
     chainPubkey: '03fedcba09876543210fedcba09876543210fedcba09876543210fedcba0987654321',

@@ -15,6 +15,14 @@ seeing the private keys**. The dApp runs a `ConnectClient`; the wallet runs a
 dApp (ConnectClient)  ←→  Transport  ←→  Wallet (ConnectHost)
 ```
 
+> **All five packages require `@unicitylabs/sphere-sdk` ≥ 0.14.1.** Wallet hosts
+> from 0.14.1 onward enforce an **SDK version floor at the handshake**: a client
+> built on an older SDK is refused with `UNSUPPORTED_PROTOCOL_VERSION` (4007)
+> before any approval UI appears, so a dApp that is not bumped simply stops
+> connecting. The Connect protocol itself is unchanged (still **2.1**) — this is
+> a dependency bump and a rebuild, nothing more. See
+> [browser/CONNECT.md](browser/CONNECT.md#-your-dapp-needs-unicitylabssphere-sdk--0141).
+
 Not every example uses Connect: the **bot** runs its own wallet directly, and
 the **backend** in backend-auth only verifies a signature. See the guide below.
 
@@ -27,7 +35,7 @@ it needs to do** with it.
 |---|---|---|---|---|
 | **`browser/`** | a web page / dApp | the **user's**, elsewhere | ✅ with per-action approval | your dApp runs in a browser and the user is present to approve each send — e.g. a **browser game** where the player approves in-game purchases |
 | **`nodejs/`** | a Node CLI / service | the **user's**, over WebSocket | ✅ with approval | you need a **CLI / desktop / server** dApp that drives a user's wallet over a WebSocket (see the caveat in its README) |
-| **`bot/`** | an autonomous agent | **its own** (own keys) | ✅ no approval — it owns the funds | you're building a **tipping bot, faucet, game NPC that pays rewards, or an agent** that acts from its own float with no human in the loop |
+| **`bot/`** | an autonomous agent | **its own** (own keys, wallet-api custody) | ✅ no approval — it owns the funds | you're building a **tipping bot, faucet, game NPC that pays rewards, or an agent** that acts from its own float with no human in the loop |
 | **`backend-auth/`** | a frontend + backend | the **user's** (frontend only signs) | ❌ **auth only** | you need to know **who** the player is — login, leaderboards, ownership, sessions — but do **not** need to move their tokens. **Recommended for games/apps that need authenticated identity, not custody or intents** |
 
 Rules of thumb:
@@ -68,10 +76,12 @@ Drives a wallet over `WebSocketTransport`. See [nodejs/README.md](nodejs/README.
 ```bash
 cd bot
 npm install
-cp .env.example .env
-npm start          # boots its own wallet on testnet2, self-mints, DM-echoes
+cp .env.example .env    # WALLET_API_URL is REQUIRED — token custody lives there
+npm start               # boots its own wallet on testnet2, self-mints, DM-echoes
 ```
-No Connect involved — the bot *is* the wallet. See [bot/README.md](bot/README.md).
+No Connect involved — the bot *is* the wallet. Since sphere-sdk 0.14 there is no
+own-storage custody: `Sphere.init` throws `INVALID_CONFIG` without a `walletApi`
+composition, so `WALLET_API_URL` must be set. See [bot/README.md](bot/README.md).
 
 ### `backend-auth/` — sign in with a Sphere wallet
 
@@ -85,10 +95,11 @@ Frontend brokers a `sign_message`; backend recovers the pubkey and issues a JWT.
 
 ## Dependencies
 
-All five packages pin the same published SDK version:
+All five packages pin the same published SDK version, exactly (no caret — these
+are examples, and pin clarity matters more than float):
 
 ```json
-"@unicitylabs/sphere-sdk": "0.13.0"
+"@unicitylabs/sphere-sdk": "0.14.1"
 ```
 
 ## Documentation

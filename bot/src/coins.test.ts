@@ -1,6 +1,36 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { TokenRegistry } from '@unicitylabs/sphere-sdk';
-import { resolveCoin, toBaseUnits } from './coins';
+import { fromBaseUnits, resolveCoin, toBaseUnits } from './coins';
+
+describe('fromBaseUnits', () => {
+  it('renders a fractional amount and trims trailing zeros', () => {
+    expect(fromBaseUnits('1500000', 6)).toBe('1.5');
+    expect(fromBaseUnits('1000000', 6)).toBe('1');
+  });
+
+  it('renders an amount smaller than one whole unit', () => {
+    expect(fromBaseUnits('1', 18)).toBe('0.000000000000000001');
+    expect(fromBaseUnits('0', 6)).toBe('0');
+  });
+
+  it('is exact past Number.MAX_SAFE_INTEGER', () => {
+    expect(fromBaseUnits('105000000000000000000', 18)).toBe('105');
+  });
+
+  it('passes through when the coin has no decimals', () => {
+    expect(fromBaseUnits('100', 0)).toBe('100');
+  });
+
+  it('round-trips with toBaseUnits', () => {
+    for (const [human, decimals] of [['1.5', 6], ['0.000000000000000001', 18], ['100', 0]] as const) {
+      expect(fromBaseUnits(toBaseUnits(human, decimals), decimals)).toBe(human);
+    }
+  });
+
+  it('rejects a non-integer input', () => {
+    expect(() => fromBaseUnits('1.5', 6)).toThrow();
+  });
+});
 
 describe('toBaseUnits', () => {
   it('converts a fractional human amount to base units', () => {

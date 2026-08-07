@@ -2,6 +2,26 @@
 
 This guide explains how to integrate a browser dApp with the Sphere wallet using the Sphere Connect protocol.
 
+> ## ⚠ Your dApp needs `@unicitylabs/sphere-sdk` **≥ 0.14.1**
+>
+> Wallet hosts from 0.14.1 onward enforce an **SDK version floor at the handshake**. `ConnectHost`
+> applies a built-in default of `0.14.1-0` (a host may raise it via
+> `ConnectHostConfig.minSdkVersion`). `ConnectClient` reports its own npm version
+> in the handshake; a client below the floor — or one old enough not to report a version at all,
+> which is every release before 0.14.1 — is refused with `UNSUPPORTED_PROTOCOL_VERSION` (**4007**)
+> before any approval UI appears:
+>
+> ```json
+> { "code": 4007,
+>   "message": "SDK version unknown (not reported) is below the required minimum 0.14.1-0",
+>   "data": { "reason": "protocol_incompatible", "requiredSdk": "0.14.1-0", "actualSdk": null } }
+> ```
+>
+> The fix is a dependency bump and a rebuild — there is no protocol change to make. Connect is
+> still **2.1**. Read `data.requiredSdk` / `data.actualSdk` and put them in your error copy;
+> `describeConnectFailure()` in `src/lib/connectErrors.ts` does exactly that, so the user is told
+> *which* version is needed instead of a bare "incompatible".
+
 ## Quick Start
 
 ```typescript
@@ -189,7 +209,11 @@ const { signature } = await wallet.intent('sign_message', {
 });
 ```
 
-> **Note:** Invoice / accounting intents are experimental and are **not** supported by the Sphere wallet. Do not use them.
+> **Removed in sphere-sdk 0.14:** the invoice / accounting surface is gone —
+> `sphere_getInvoices`, `sphere_getInvoiceStatus`, the nine invoice intents and the
+> `invoice:read` / `invoice:write` scopes no longer exist. They were never enabled in any wallet
+> host. Connect stays at protocol **2.1**; the surface is simply 14 queries, 6 intents and 13
+> permission scopes now.
 
 ---
 
@@ -206,7 +230,25 @@ const unsub = wallet.on('transfer:incoming', (data) => {
 return () => unsub();
 ```
 
-Available events: auto-pushed `wallet:locked`, `wallet:unlocked`, `wallet:disconnected` and `identity:changed`, plus subscribable `transfer:incoming`, `transfer:confirmed`, `transfer:failed`. The full set is larger — see EventLogPanel for the complete list.
+Available events: auto-pushed `wallet:locked`, `wallet:unlocked`, `wallet:disconnected` and `identity:changed`, plus subscribable `transfer:incoming`, `transfer:updated`, `transfer:attention`, `inventory:updated`, `payment_request:updated`, `connection:status` and more. The full set is larger — see EventLogPanel for the complete list.
+
+### Event names changed in sphere-sdk 0.14
+
+The payments rebuild collapsed several events into fewer, better-typed ones. **Use the new
+names in new code** — they are what the wallet actually emits:
+
+| Before 0.14 | Now |
+|---|---|
+| `transfer:confirmed`, `transfer:delivery_pending`, `transfer:failed` | `transfer:updated` (read `status` / `deliveryPending`) |
+| `split:checkpoint-stuck`, `delivery:undeliverable`, `delivery:deferred` | `transfer:attention` `{ transferId, code, detail? }` |
+| `sync:completed`, `sync:remote-update` | `inventory:updated` |
+| `realtime:status`, `storage:degraded` | `connection:status` `{ status: 'connected' \| 'degraded' \| 'offline' }` |
+| `payment_request:paid`, `:rejected`, `:expired` | `payment_request:updated` `{ id, status }` |
+| `transfer:incoming` | unchanged |
+
+Every old name still works: the wallet host re-emits each one from the new event through a
+compatibility adapter, so a dApp built before 0.14 keeps receiving them. Nothing a dApp
+subscribes to silently stopped firing.
 
 The four events in `AUTO_PUSHED_EVENTS` — `wallet:locked`, `wallet:unlocked`, `wallet:disconnected`, `identity:changed` — are pushed by `ConnectHost` unconditionally. Never route them through `sphere_subscribe`: `Sphere.on()` accepts any string and would silently never emit, so the subscribe would succeed and deliver nothing forever. See [Wallet Lock Handling](#wallet-lock-handling-wallet_eventslocked) below.
 
@@ -424,11 +466,11 @@ chrome carries the passive "N requests blocked — Unlock" badge. This is where 
 session-preserving lock actually pays off — the host outlives both the lock and a reload of the
 framed page.
 
-A locked wallet that HOLDS your session serves four of the sixteen `RPC_METHODS`:
+A locked wallet that HOLDS your session serves four of the fourteen `RPC_METHODS`:
 `sphere_getIdentity` (from a frozen snapshot), `sphere_subscribe`, `sphere_unsubscribe` and
-`sphere_disconnect`. The other **twelve, and every intent**, are refused `WALLET_LOCKED` (4009) —
-the five money reads, `sphere_resolve`, **all four DM reads** (`getConversations`, `getMessages`,
-`getDMUnreadCount`, `markAsRead`) and both invoice reads. Nothing is cached, and **messaging does
+`sphere_disconnect`. The other **ten, and every intent**, are refused `WALLET_LOCKED` (4009) —
+the five money reads, `sphere_resolve`, and **all four DM reads** (`getConversations`,
+`getMessages`, `getDMUnreadCount`, `markAsRead`). Nothing is cached, and **messaging does
 not keep working while locked**. So a dApp must **stop issuing reads while `isWalletLocked`** and
 resume on `unlockEpoch`, rather than polling into refusals: every refusal increments the wallet's
 blocked-request badge.

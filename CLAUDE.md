@@ -1,5 +1,12 @@
 # CLAUDE.md - Sphere SDK Connect Example
 
+> **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.14.1** exactly. Wallet hosts
+> from 0.14.1 enforce an SDK version floor at the Connect handshake (`ConnectHost`'s built-in
+> default is `0.14.1-0`, overridable via `ConnectHostConfig.minSdkVersion`): a client on an older
+> SDK — or one too old to report a version, i.e. anything before 0.14.1 — is refused with
+> `UNSUPPORTED_PROTOCOL_VERSION` (4007) carrying `data.requiredSdk` / `data.actualSdk`. The
+> Connect protocol is unchanged at **2.1**.
+
 Demonstration project with four runnable examples of working with a Sphere wallet: a **browser dApp** and a **Node.js dApp** (both use the Connect protocol to drive a user's wallet), a **bot** that runs its own wallet (direct SDK, no Connect), and a **backend-auth** flow (a frontend brokers a wallet signature, a backend verifies it and issues a JWT). The Connect module enables dApps to interact with Sphere wallets through a transport-agnostic, permission-based RPC interface.
 
 ## Project Structure
@@ -55,9 +62,10 @@ sphere-sdk-connect-example/
 │
 ├── bot/                       # Bot that runs its OWN wallet (direct SDK, NOT Connect)
 │   ├── src/
-│   │   ├── sphere.ts              # own-wallet Sphere.init (+ optional wallet-api receive rail)
+│   │   ├── sphere.ts              # own-wallet Sphere.init (createNodeProviders + createWalletApiProviders)
 │   │   ├── index.ts               # DM auto-reply, self-mint, money-safe send loop
-│   │   ├── coins.ts               # symbol→coinId + human→base-unit helpers (unit-tested)
+│   │   ├── coins.ts               # symbol→coinId + human↔base-unit helpers (unit-tested)
+│   │   ├── sendSafety.ts          # mayBeCommitted(): never re-send a possibly-committed spend (unit-tested)
 │   │   ├── aggregatorKey.ts       # env key → saved → SGW auto-provision + persist (unit-tested)
 │   │   ├── provisionAggregatorKey.ts, sgwChallenge.ts  # SGW challenge/sign/verify
 │   │   └── *.test.ts
@@ -111,7 +119,7 @@ cp .env.example .env
 npm start          # boots its own wallet on testnet2, self-mints, DM-echoes
 ```
 
-No Connect — the bot *is* the wallet. Leave `AGGREGATOR_API_KEY` empty and it auto-provisions its own free-plan SGW key on first boot and persists it.
+No Connect — the bot *is* the wallet. Leave `AGGREGATOR_API_KEY` empty and it auto-provisions its own free-plan SGW key on first boot and persists it. `WALLET_API_URL` is **required**: sphere-sdk 0.14 deleted own-storage custody (`tokenStorage` / `tokensDir` and both `TokenStorageProvider` implementations are gone), so `Sphere.init` throws `INVALID_CONFIG` without a `walletApi` composition. Keys/identity stay local under `BOT_DATA_DIR`; tokens, history and payment requests live in wallet-api.
 
 ### Backend Auth (sign in with a wallet)
 
@@ -126,9 +134,9 @@ Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubke
 
 ## Dependencies
 
-All five packages pin the same published SDK version:
+All five packages pin the same published SDK version, exactly (no caret):
 ```json
-"@unicitylabs/sphere-sdk": "0.13.0"
+"@unicitylabs/sphere-sdk": "0.14.1"
 ```
 
 - **Browser / backend-auth frontend:** React 19, Vite 7
@@ -195,6 +203,12 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 | `sphere_subscribe` | Subscribe to events | `events:subscribe` |
 | `sphere_unsubscribe` | Unsubscribe | `events:subscribe` |
 
+`RPC_METHODS` has **14** members (the 9 above plus `sphere_disconnect` and the four DM reads:
+`sphere_getConversations`, `sphere_getMessages`, `sphere_getDMUnreadCount`, `sphere_markAsRead`).
+`PERMISSION_SCOPES` has **13**. The invoice surface (`sphere_getInvoices`,
+`sphere_getInvoiceStatus`, the nine invoice intents, `invoice:read` / `invoice:write`) was
+**deleted in sphere-sdk 0.14** — it never shipped enabled in any wallet host.
+
 **Intents** (require user approval each time):
 | Intent Action | Description | Required Permission |
 |--------------|-------------|---------------------|
@@ -245,12 +259,14 @@ HOST_READY_TIMEOUT = 30_000  // ms
 | 4004 | `SESSION_EXPIRED` | Session TTL exceeded |
 | 4005 | `ORIGIN_BLOCKED` | Origin not allowed |
 | 4006 | `RATE_LIMITED` | Too many requests |
-| 4007 | `UNSUPPORTED_PROTOCOL_VERSION` | Connect protocol MAJOR mismatch |
+| 4007 | `UNSUPPORTED_PROTOCOL_VERSION` | Connect protocol MAJOR mismatch **or** the client's npm SDK version is below the host's floor (`data.requiredSdk` / `data.actualSdk`) |
 | 4008 | `INCOMPATIBLE_NETWORK` | dApp targets a different network than the wallet |
+| 4009 | `WALLET_LOCKED` | Wallet locked; the session is still alive |
 | 4100 | `INSUFFICIENT_BALANCE` | Not enough tokens |
 | 4101 | `INVALID_RECIPIENT` | Bad recipient address |
 | 4102 | `TRANSFER_FAILED` | Transfer error |
 | 4200 | `INTENT_CANCELLED` | Intent cancelled |
+| 4201 | `INTENT_OUTCOME_UNKNOWN` | The wallet took the intent and the answer was lost — **never retry**, reconcile |
 
 ## Key Implementation Details
 
@@ -299,7 +315,7 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 
 ### Mock Wallet Server (`nodejs/src/mock-wallet-server.ts`)
 
-- Creates `ConnectHost` with a mock `SphereInstance` (`src/mockSphere.ts`, shared with the tests)
+- Creates `ConnectHost` with a mock `SphereInstance` (`src/mockSphere.ts`, shared with the tests). The mock is shaped like a real 0.14 wallet: `payments` is the payments-v2 facade (`assets()` / `tokens()` / paged `history()`) and `paymentsV2` is the deprecated alias `ConnectHost` reads to detect a v2 wallet
 - Auto-approves all connection requests with full permissions
 - Auto-approves all intents with action-specific success responses
 - Returns rich mock data: identity, assets (UCT + USDU with fiat/24h change), tokens (with statuses), history
@@ -313,16 +329,22 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 - `wallet:disconnected` — session destroyed; re-handshake to continue
 - `identity:changed` — address switch
 
-Subscribable events (via `client.on()`):
-- `transfer:incoming` — Received tokens
-- `transfer:confirmed` — Outgoing confirmed
-- `transfer:failed` — Outgoing failed
-- `identity:changed` — Address switch
-- `nametag:registered` — Nametag registered
-- `nametag:recovered` — Nametag recovered
-- `address:activated` — New address tracked
-- `sync:provider` — Sync result
+Subscribable events (via `client.on()`), using the **sphere-sdk 0.14 names**:
+- `transfer:incoming` — Received tokens (unchanged across the flip)
+- `transfer:updated` — A transfer advanced; read `status` / `deliveryPending` (replaces `transfer:confirmed`, `transfer:delivery_pending`, `transfer:failed`)
+- `transfer:attention` — `{ transferId, code, detail? }` (replaces `split:checkpoint-stuck`, `delivery:undeliverable`, `delivery:deferred`)
+- `inventory:updated` — Token inventory changed (replaces the `sync:*` family)
+- `history:updated` — A history entry was recorded
 - `payment_request:incoming` — Payment request received
+- `payment_request:updated` — `{ id, status }` (replaces `payment_request:paid` / `:rejected` / `:expired`)
+- `connection:status` — `{ status: 'connected' | 'degraded' | 'offline' }` (replaces `realtime:status` + `storage:degraded`)
+- `identity:changed` — Address switch
+- `nametag:registered` / `nametag:recovered` — Nametag lifecycle
+- `address:activated` — New address tracked
+
+Every pre-0.14 name still fires: the host re-emits each one from the new event through a
+compatibility adapter, so no dApp subscription silently went dead. New code uses the names above.
+`browser/src/components/events/EventLogPanel.tsx` holds the canonical list this repo subscribes to.
 
 ## Connect Module Source (in sphere-sdk)
 
