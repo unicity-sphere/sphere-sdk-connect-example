@@ -66,6 +66,11 @@ export const ALL_EVENTS = [
   'groupchat:connection',
 ];
 
+/**
+ * `transfer:updated` is the COMBINED outcome event (0.14): it replaced
+ * transfer:confirmed AND transfer:failed AND transfer:delivery_pending, so the
+ * name alone says nothing about whether money moved — see badgeFor().
+ */
 export const EVENT_COLORS: Record<string, string> = {
   // Transfers
   'transfer:incoming': 'bg-green-500/15 text-green-400',
@@ -107,6 +112,25 @@ export const EVENT_COLORS: Record<string, string> = {
   'groupchat:updated': 'bg-teal-500/15 text-teal-400',
   'groupchat:connection': 'bg-teal-500/15 text-teal-400',
 };
+
+/**
+ * Badge style for one logged event. The name alone is not enough for
+ * `transfer:updated`: a FAILED send carries the same event name as a confirmed
+ * one, and green-for-failed is the miscolour that actively misleads — a dApp
+ * dev reads this log to answer "did it go through?". Failed → red;
+ * still-converging (deliveryPending / pending) → amber; else the table colour.
+ */
+export function badgeFor(event: string, data: unknown): string {
+  const fallback = EVENT_COLORS[event] ?? 'bg-white/3 text-white/55';
+  if (event !== 'transfer:updated') return fallback;
+  const result = data as { status?: unknown; deliveryPending?: unknown } | null | undefined;
+  if (result?.status === 'failed') return 'bg-red-500/15 text-red-400';
+  if (result?.deliveryPending === true || result?.status === 'pending') {
+    return 'bg-amber-500/15 text-amber-400';
+  }
+  return fallback;
+}
+
 
 let nextId = 0;
 
@@ -169,7 +193,7 @@ export function EventLogPanel({ on }: Props) {
           </div>
         ) : (
           filtered.map((entry) => {
-            const badgeStyle = EVENT_COLORS[entry.event] ?? 'bg-white/3 text-white/55';
+            const badgeStyle = badgeFor(entry.event, entry.data);
             return (
               <div key={entry.id} className="p-3 bg-white/3 rounded-xl text-xs">
                 <div className="flex items-center justify-between mb-1">
