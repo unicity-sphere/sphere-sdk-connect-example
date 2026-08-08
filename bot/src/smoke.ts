@@ -3,18 +3,17 @@
  *
  * Boots the bot's own Sphere wallet against the real testnet2 network and
  * prints the resulting identity, then exits. Used to verify `createBotSphere()`
- * (Task 2 of the own-wallet bot plan) against the live aggregator/Nostr —
- * there is no unit test for `sphere.ts` since it's an integration boot, not
- * pure logic (see `.superpowers/sdd/task-b2-brief.md`).
+ * against the live aggregator / wallet-api / Nostr — there is no unit test for
+ * `sphere.ts` since it's an integration boot, not pure logic.
  *
- * Run: `npx tsx src/smoke.ts`
+ * Run: `npx tsx src/smoke.ts` (needs WALLET_API_URL in .env).
  */
 import { createBotSphere } from './sphere';
 
 async function main() {
-  const { sphere, identity, receivesPayments } = await createBotSphere();
+  const { sphere, identity } = await createBotSphere();
   console.log('Bot identity:', identity);
-  console.log('receivesPayments (wallet-api mailbox rail composed):', receivesPayments);
+  console.log('Assets:', await sphere.payments.assets());
   await sphere.destroy();
   process.exit(0);
 }

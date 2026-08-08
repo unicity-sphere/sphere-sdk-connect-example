@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
-import { describeError, isConnectErrorCode, isWalletLocked } from './errors';
+import { describeError, describeVersionFloor, isConnectErrorCode, isWalletLocked } from './errors';
 
 const coded = (code: number, message = 'refused') => Object.assign(new Error(message), { code });
+const codedWithData = (code: number, message: string, data: unknown) =>
+  Object.assign(new Error(message), { code, data });
 
 describe('isWalletLocked', () => {
   it('is true only for 4009', () => {
@@ -31,12 +33,50 @@ describe('describeError', () => {
     );
   });
 
+  it('names the required SDK version when the wallet enforces its floor', () => {
+    const text = describeError(
+      codedWithData(
+        ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION,
+        'SDK version unknown (not reported) is below the required minimum 0.14.1-0',
+        { reason: 'protocol_incompatible', requiredSdk: '0.14.1-0', actualSdk: null },
+      ),
+    );
+    expect(text).toContain('0.14.1-0');
+    expect(text).toMatch(/reported no sphere-sdk version/);
+  });
+
   it('falls back to the error message', () => {
     expect(describeError(new Error('Could not reach the backend'))).toBe('Could not reach the backend');
   });
 
   it('falls back to a generic line for a non-Error', () => {
     expect(describeError(null)).toBe('Something went wrong.');
+  });
+});
+
+describe('describeVersionFloor', () => {
+  it('is null for any other code', () => {
+    expect(describeVersionFloor(coded(ERROR_CODES.USER_REJECTED))).toBeNull();
+  });
+
+  it('is null when the host sent no versions to name', () => {
+    expect(
+      describeVersionFloor(codedWithData(ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION, 'nope', { reason: 'x' })),
+    ).toBeNull();
+  });
+
+  it('names both versions when the host reported them', () => {
+    expect(
+      describeVersionFloor(
+        codedWithData(ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION, 'nope', {
+          requiredSdk: '0.14.1-0',
+          actualSdk: '0.13.1',
+        }),
+      ),
+    ).toBe(
+      'This app is built on sphere-sdk 0.13.1 — the wallet requires 0.14.1-0 or newer. ' +
+        'Upgrade @unicitylabs/sphere-sdk and rebuild.',
+    );
   });
 });
 

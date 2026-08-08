@@ -10,6 +10,12 @@ This is the only example that exercises `WebSocketTransport`, the third Connect
 transport (the other two, `PostMessageTransport` and `ExtensionTransport`, are
 browser-only).
 
+> **Needs `@unicitylabs/sphere-sdk` ≥ 0.14.1 on both sides.** A 0.14.1 `ConnectHost`
+> enforces an SDK version floor at the handshake and refuses older clients with
+> `UNSUPPORTED_PROTOCOL_VERSION` (4007) — including the mock wallet server here.
+> The refusal carries `data.requiredSdk` / `data.actualSdk`; `describeConnectFailure()`
+> in `src/lockResume.ts` is a small example of turning that into useful copy.
+
 ## When to use this
 
 Reach for this when your app is a **Node process — a CLI, a desktop tool, a
@@ -60,6 +66,15 @@ conversations | messages <pubkey> | unread | read <id...>              # chat
 > Amounts are **base units** (integer strings) and `coinId` is the lowercase
 > 64-hex id — the same contract the wallet enforces. A `send` may resolve with
 > `deliveryPending: true` and no `transferId`; that is a success, not a retry.
+
+### What the mock wallet teaches
+
+`src/mockSphere.ts` is shaped like a **real sphere-sdk 0.14 wallet**: `payments` is the
+payments-v2 facade (`assets()` / `tokens()` / paged `history()`), and `paymentsV2` is the
+deprecated alias that `ConnectHost` reads to detect a v2 wallet. The host maps the Connect wire
+onto it — `sphere_getBalance` and `sphere_getAssets` both serve `assets()`, `sphere_getHistory`
+walks every `history()` page and flattens them — so the **dApp side of the wire did not change
+at all** in 0.14. That is the point: the payments rebuild is invisible to a Connect client.
 
 ## How the connection is made
 

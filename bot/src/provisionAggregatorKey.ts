@@ -6,18 +6,15 @@
  * the static `AGGREGATOR_API_KEY` testnet2 key (and its rate limit) with
  * every other example wallet.
  *
- * SDK symbols verified against `sphere-sdk` 0.11.14 source (this repo pins
- * that exact version):
- * - `getPublicKey(privateKey, compressed?)` — `core/crypto.ts:258`, exported
- *   at the SDK root via `index.ts:99`.
- * - `signMessage(privateKeyHex, message)` — `core/crypto.ts:502`, exported
- *   at the SDK root via `index.ts:52`.
- * - `NETWORKS` — `constants.ts:394`, exported at the SDK root via
- *   `index.ts:342`. `NETWORKS.testnet2.aggregatorUrl` = SGW base URL
- *   (`constants.ts:417-421`, `'https://gateway.testnet2.unicity.network'`).
- * - `Sphere` — exported at the SDK root via `index.ts:51`.
- * - `sphere.deriveAddress(0)` — `core/Sphere.ts:2972`, returns `AddressInfo`
- *   (`{ privateKey, publicKey, path, index }`, `core/crypto.ts:64`).
+ * SDK symbols verified against `@unicitylabs/sphere-sdk` **0.14.1** (the version
+ * this package pins), all exported from the SDK root:
+ * - `getPublicKey(privateKey, compressed?)` and `signMessage(privateKeyHex, message)`
+ *   — pure local secp256k1 crypto; no aggregator key needed to run them, which is
+ *   what makes the bootstrap (sign the challenge that provisions the key) possible.
+ * - `NETWORKS` — `NETWORKS.testnet2.aggregatorUrl` is the SGW base URL
+ *   (`https://gateway.testnet2.unicity.network`).
+ * - `sphere.deriveAddress(0)` returns `AddressInfo`
+ *   (`{ privateKey, publicKey, path, index }`).
  */
 import type { Sphere } from '@unicitylabs/sphere-sdk';
 import { getPublicKey, signMessage, NETWORKS } from '@unicitylabs/sphere-sdk';

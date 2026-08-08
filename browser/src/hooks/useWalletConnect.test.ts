@@ -467,12 +467,12 @@ describe('useWalletConnect — a dApp reload must not reload the wallet', () => 
 
 describe('useWalletConnect — a refused handshake says which version to move to', () => {
   it('surfaces the SDK floor the wallet compared, not just its bare message', async () => {
-    // Exactly what a 0.13 wallet sends a 0.11 app: the numbers are in `data`, the message
-    // (from a wallet on an older SDK) names none of them.
+    // Exactly what a 0.14.1 wallet sends a pre-0.14.1 app. A client that old reports no
+    // sdkVersion at all, so `actualSdk` comes back null and only `requiredSdk` is nameable.
     FakeConnectClient.nextConnectError = new ConnectError(
-      'SDK version below the required minimum',
+      'SDK version unknown (not reported) is below the required minimum 0.14.1-0',
       ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION,
-      { reason: 'protocol_incompatible', requiredSdk: '0.12.0-0', actualSdk: '0.11.9' },
+      { reason: 'protocol_incompatible', requiredSdk: '0.14.1-0', actualSdk: null },
     );
 
     const hook = renderHook(() => useWalletConnect());
@@ -480,8 +480,8 @@ describe('useWalletConnect — a refused handshake says which version to move to
     await connectPopup(hook.result);
 
     expect(hook.result.current.isConnected).toBe(false);
-    expect(hook.result.current.error).toContain('0.11.9');
-    expect(hook.result.current.error).toContain('0.12.0-0');
+    expect(hook.result.current.error).toContain('reported no sphere-sdk version');
+    expect(hook.result.current.error).toContain('0.14.1-0');
   });
 
   it('leaves an ordinary failure message alone', async () => {

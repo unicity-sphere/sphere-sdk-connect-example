@@ -1,68 +1,75 @@
 /**
  * Bot runtime behavior — the bot's OWN Sphere wallet (booted via
- * `createBotSphere()`, Task 2) wired up to: DM auto-reply, a one-time
- * self-mint float, optional incoming-transfer logging, and a small stdin
- * command loop for a money-safe demo `send`.
+ * `createBotSphere()`) wired up to: DM auto-reply, a one-time self-mint
+ * float, incoming-transfer logging, and a small stdin command loop for a
+ * money-safe demo `send`.
  *
- * SDK symbols/field names below are verified against `sphere-sdk` 0.11.14
- * source (this repo pins that exact version):
+ * SDK surface used here, verified against `@unicitylabs/sphere-sdk` **0.14.1**:
  *
- * - `sphere.communications` getter — `core/Sphere.ts:1388`.
- * - `communications.onDirectMessage(handler: (m: DirectMessage) => void): () => void`
- *   — `modules/communications/CommunicationsModule.ts:450`.
- * - `communications.sendDM(recipient: string, content: string): Promise<DirectMessage>`
- *   — `modules/communications/CommunicationsModule.ts:244`.
- * - `DirectMessage` — `{ id, senderPubkey, senderNametag?, recipientPubkey,
- *   recipientNametag?, content, timestamp, isRead }` — `types/index.ts:337-346`,
- *   re-exported from the SDK root via `index.ts:134` (`export * from './types'`).
- * - `sphere.payments` getter — `core/Sphere.ts:1382`.
- * - `payments.mintFungibleToken(coinIdHex: string, amount: bigint): Promise<
- *   { success: true; token: Token; tokenId: string } | { success: false; error: string }>`
- *   — `modules/payments/PaymentsModule.ts:4655-4667`. NOTE: `amount` is a
- *   `bigint`, not a base-unit string — `toBaseUnits()` (Task 1) returns a
- *   string, so it must be wrapped in `BigInt(...)`. This does NOT throw on
- *   an ordinary mint failure (e.g. no token engine) — it resolves to
- *   `{ success: false, error }` — confirmed against the real call site in
- *   `agentic-chatbot/packages/chess-bot/src/wallet.ts:137-146`, which checks
- *   `result.success` AND wraps the call in try/catch (it can still throw for
- *   genuinely exceptional errors). Mirrored here.
- * - `payments.getBalance(coinId?: string): Asset[]` — synchronous —
- *   `modules/payments/PaymentsModule.ts:3525-3527`.
- * - `payments.send(request: TransferRequest): Promise<TransferResult>` —
- *   `modules/payments/PaymentsModule.ts:1759-1762`. `TransferRequest` —
- *   `{ coinId, amount, recipient, memo? }` — `types/index.ts:143-156`.
- *   `TransferResult.deliveryPending?: boolean` — `types/index.ts:188` — true
- *   means "sent, delivery pending" (source is terminally spent, recipient
- *   delivery will land later) — a SUCCESS outcome, never resend.
- * - `sphere.on<T>(type: T, handler): () => void` — `core/Sphere.ts:3390`.
- *   `'transfer:incoming'` payload is `IncomingTransfer` — `{ id, senderPubkey,
- *   senderNametag?, tokens, memo?, receivedAt }` — `types/index.ts:193-200`,
- *   confirmed emitted by `PaymentsModule.ts:5239`.
- * - Money-safety guard: `isPossiblyCommittedSendOutcome(err: unknown): boolean`
- *   — `core/errors.ts:240-242` — true for `SphereError`s whose `code` is in
- *   the possibly-committed set, which ALREADY includes `'SEND_PARTIALLY_COMPLETED'`
- *   (`core/errors.ts:223-230`). Exported from the SDK root — `index.ts:51`
- *   (`export { ..., isPossiblyCommittedSendOutcome } from './core'`). The
- *   brief additionally asks for an explicit `err?.code === 'SEND_PARTIALLY_COMPLETED'`
- *   check — redundant for a real `PartialSendConflictError` (already covered
- *   above) but kept as a defensive belt-and-suspenders check for any
- *   non-`SphereError`-shaped rejection that happens to carry that code.
- * - `identity.chainPubkey` — `Identity` — `types/index.ts:30-37` — used to
- *   skip the bot's own outgoing DMs echoing back to itself.
+ * - `sphere.payments` is the payments-v2 facade. The members used below:
+ *     `assets(coinId?): Promise<Asset[]>`   — the balance view (grouped by coin)
+ *     `mint(coinIdHex, amount: bigint): Promise<MintResult>`  — self-mint
+ *     `send(req): Promise<TransferResult>`  — { recipient, amount, coinId, memo? }
+ *   `mint` takes a **bigint**, not a base-unit string, so `toBaseUnits()`'s
+ *   string result must be wrapped in `BigInt(...)`. It resolves to
+ *   `{ success: false, error }` for ordinary failures rather than throwing,
+ *   but can still throw for exceptional ones — hence both checks below.
+ * - `TransferResult.deliveryPending === true` means "sent, delivery pending":
+ *   the source is terminally spent and the recipient's copy will land later.
+ *   That is a SUCCESS. Never resend it.
+ * - `mayBeCommitted(err)` (`./sendSafety`) is true for the typed error codes
+ *   whose spend may already be on-chain (`CERTIFICATION_UNCONFIRMED`,
+ *   `SEND_SYNC_PENDING`, `SEND_PARTIALLY_COMPLETED`, the checkpoint codes …).
+ *   It wraps the SDK's `isPossiblyCommittedSendOutcome` with a duck-typed
+ *   fallback — see that file for why. The correct recovery is
+ *   `payments.resumeNow()`, which replays the SAME intent — never a fresh
+ *   `send()`, which would spend a different source and pay the recipient twice.
+ * - `sphere.on('transfer:incoming', …)` — unchanged across the flip.
+ *   `sphere.on('transfer:updated', …)` is the current lifecycle event; it
+ *   replaces the old `transfer:confirmed` / `transfer:failed` pair.
+ * - `sphere.communications.onDirectMessage(handler)` / `.sendDM(to, content)`
+ *   — DMs still ride Nostr; only money moved to wallet-api.
  */
 import readline from 'readline';
-import { isPossiblyCommittedSendOutcome, type DirectMessage, type IncomingTransfer } from '@unicitylabs/sphere-sdk';
+import {
+  type Asset,
+  type DirectMessage,
+  type IncomingTransfer,
+  type TransferResult,
+} from '@unicitylabs/sphere-sdk';
 import { createBotSphere } from './sphere';
-import { resolveCoin, toBaseUnits } from './coins';
+import { mayBeCommitted } from './sendSafety';
+import { fromBaseUnits, resolveCoin, toBaseUnits } from './coins';
 
 const MINT_SYMBOL = 'UCT';
 const MINT_AMOUNT_HUMAN = '100';
 
+/**
+ * `Asset.totalAmount` is in BASE units — `fromBaseUnits` puts the decimal point back.
+ *
+ * Falls back to the raw base-unit string if the coin's `decimals` is missing or
+ * nonsensical. Printing a balance must never be able to kill the bot.
+ */
+function formatAssets(assets: Asset[]): string {
+  if (assets.length === 0) return '(empty)';
+  return assets
+    .map((a) => {
+      let amount: string;
+      try {
+        amount = fromBaseUnits(a.totalAmount, a.decimals);
+      } catch {
+        amount = `${a.totalAmount} (base units)`;
+      }
+      return `${amount} ${a.symbol} (${a.tokenCount} token(s))`;
+    })
+    .join('\n  ');
+}
+
 async function main() {
-  const { sphere, identity, receivesPayments } = await createBotSphere();
+  const { sphere, identity } = await createBotSphere();
   console.log('Bot identity:', identity);
 
-  // --- 1. DMs (always): echo back anything sent to the bot, skip self-DMs ---
+  // --- 1. DMs: echo back anything sent to the bot, skip self-DMs ---
   sphere.communications.onDirectMessage(async (m: DirectMessage) => {
     console.log(`[dm] from ${m.senderNametag ?? m.senderPubkey}: ${m.content}`);
     if (m.senderPubkey === identity.chainPubkey) {
@@ -79,7 +86,7 @@ async function main() {
   try {
     const { coinId, decimals } = resolveCoin(MINT_SYMBOL);
     const amount = BigInt(toBaseUnits(MINT_AMOUNT_HUMAN, decimals));
-    const result = await sphere.payments.mintFungibleToken(coinId, amount);
+    const result = await sphere.payments.mint(coinId, amount);
     if (result.success) {
       console.log(`[mint] self-minted ${MINT_AMOUNT_HUMAN} ${MINT_SYMBOL} (tokenId ${result.tokenId})`);
     } else {
@@ -88,21 +95,49 @@ async function main() {
   } catch (err) {
     console.error('[mint] self-mint threw:', err instanceof Error ? err.message : err);
   }
-  console.log('[balance]', JSON.stringify(sphere.payments.getBalance(), null, 2));
+  // `assets()` is a view over the wallet-api inventory, and the server credits a
+  // fresh mint asynchronously — so this first read can legitimately come back empty
+  // even though the mint above certified on-chain. `inventory:updated` is the signal
+  // that the server's view caught up; that is what a UI refreshes on.
+  console.log('[balance]\n  ' + formatAssets(await sphere.payments.assets()));
 
-  // --- 3. Receive: only wired if the wallet-api mailbox rail was composed in ---
-  if (receivesPayments) {
-    sphere.on('transfer:incoming', (t: IncomingTransfer) => {
-      console.log(`[receive] incoming transfer ${t.id} from ${t.senderNametag ?? t.senderPubkey}`);
-      sphere.communications.sendDM(t.senderPubkey, 'thanks for the tokens!').catch((err) => {
-        console.error('[receive] failed to send thank-you DM:', err instanceof Error ? err.message : err);
-      });
+  // Two inventory updates in flight means two overlapping assets() reads, which can
+  // resolve out of order — printing a stale balance AFTER a fresher one. The epoch
+  // guard drops any result that a later read already superseded. A UI refreshing on
+  // this event needs the same rule.
+  let balanceEpoch = 0;
+  sphere.on('inventory:updated', () => {
+    const epoch = ++balanceEpoch;
+    void sphere.payments
+      .assets()
+      .then((assets) => {
+        if (epoch !== balanceEpoch) return; // superseded by a newer read
+        console.log('[balance]\n  ' + formatAssets(assets));
+      })
+      .catch((err) => console.error('[balance] read failed:', err instanceof Error ? err.message : err));
+  });
+
+  // --- 3. Incoming transfers (tokens are delivered to the wallet-api mailbox) ---
+  sphere.on('transfer:incoming', (t: IncomingTransfer) => {
+    console.log(`[receive] incoming transfer ${t.id} from ${t.senderNametag ?? t.senderPubkey}`);
+    sphere.communications.sendDM(t.senderPubkey, 'thanks for the tokens!').catch((err) => {
+      console.error('[receive] failed to send thank-you DM:', err instanceof Error ? err.message : err);
     });
-  } else {
-    console.log('WALLET_API_URL not set — this bot will not receive tokens from the hosted wallet (see README).');
-  }
+  });
 
-  // --- 4. Demo command loop: send / balance / help / exit ---
+  // The current lifecycle event for anything this wallet sends, receives or
+  // mints. It replaced transfer:confirmed / transfer:failed in 0.14.
+  sphere.on('transfer:updated', (t: TransferResult) => {
+    console.log(`[transfer] ${t.id} -> ${t.status}${t.deliveryPending ? ' (delivery pending)' : ''}`);
+  });
+
+  // The wallet-api session's connectivity. 'degraded'/'offline' means reads
+  // may be stale and sends will queue — it is not a failure.
+  sphere.on('connection:status', ({ status }) => {
+    console.log(`[connection] ${status}`);
+  });
+
+  // --- 4. Demo command loop: send / balance / pending / resume / help / exit ---
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   function showPrompt() {
@@ -135,8 +170,11 @@ async function main() {
                 console.log('Send result:', JSON.stringify(result, null, 2));
               }
             } catch (err) {
-              if (isPossiblyCommittedSendOutcome(err) || (err as { code?: string } | undefined)?.code === 'SEND_PARTIALLY_COMPLETED') {
-                console.log('spend may already be committed — do NOT retry');
+              if (mayBeCommitted(err)) {
+                console.log(
+                  'spend may already be committed — do NOT re-send. ' +
+                    'Run "resume" to replay the same intent.',
+                );
               } else {
                 console.error('Send failed:', err instanceof Error ? err.message : err);
               }
@@ -144,7 +182,19 @@ async function main() {
             break;
           }
           case 'balance': {
-            console.log('Balance:', JSON.stringify(sphere.payments.getBalance(), null, 2));
+            console.log('Balance:\n  ' + formatAssets(await sphere.payments.assets()));
+            break;
+          }
+          case 'pending': {
+            const pending = await sphere.payments.pendingTransfers();
+            console.log(pending.length === 0 ? 'Nothing pending.' : JSON.stringify(pending, null, 2));
+            break;
+          }
+          case 'resume': {
+            // The ONLY safe retry for a possibly-committed send: it replays the
+            // SAME intent (same transferId) instead of issuing a new spend.
+            await sphere.payments.resumeNow();
+            console.log('Resume pass complete.');
             break;
           }
           case 'exit':
@@ -160,6 +210,8 @@ async function main() {
 Commands:
   send @to <human-amount> <symbolOrCoinId>  - Send L3 tokens (money-safe: no auto-resend on a possibly-committed outcome)
   balance                                   - Show current balance
+  pending                                   - Show transfers still converging
+  resume                                    - Replay open intents (the safe retry — never re-sends)
   help                                      - Show this help
   exit                                      - Shut down and exit
 `);
