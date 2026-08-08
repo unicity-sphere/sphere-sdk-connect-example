@@ -467,8 +467,27 @@ describe('useWalletConnect — a dApp reload must not reload the wallet', () => 
 
 describe('useWalletConnect — a refused handshake says which version to move to', () => {
   it('surfaces the SDK floor the wallet compared, not just its bare message', async () => {
-    // Exactly what a 0.14.1 wallet sends a pre-0.14.1 app. A client that old reports no
-    // sdkVersion at all, so `actualSdk` comes back null and only `requiredSdk` is nameable.
+    // Exactly what a 0.14.1 wallet sends a pre-flip app. `ConnectClient` has reported its
+    // npm version in the handshake since sphere-sdk 0.10.1, so the wallet names it: this
+    // is the refusal a real un-bumped dApp receives, and both versions must reach the UI.
+    FakeConnectClient.nextConnectError = new ConnectError(
+      'SDK version 0.13.1 is below the required minimum 0.14.1-0',
+      ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION,
+      { reason: 'protocol_incompatible', requiredSdk: '0.14.1-0', actualSdk: '0.13.1' },
+    );
+
+    const hook = renderHook(() => useWalletConnect());
+    await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
+    await connectPopup(hook.result);
+
+    expect(hook.result.current.isConnected).toBe(false);
+    expect(hook.result.current.error).toContain('0.13.1');
+    expect(hook.result.current.error).toContain('0.14.1-0');
+  });
+
+  // `actualSdk: null` only reaches a host from 0.9.x / 0.10.0, the releases predating the
+  // handshake's sdkVersion field. Kept covered, but it is not the case to design copy around.
+  it('still says something useful when the client reported no version', async () => {
     FakeConnectClient.nextConnectError = new ConnectError(
       'SDK version unknown (not reported) is below the required minimum 0.14.1-0',
       ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION,
@@ -479,7 +498,6 @@ describe('useWalletConnect — a refused handshake says which version to move to
     await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
     await connectPopup(hook.result);
 
-    expect(hook.result.current.isConnected).toBe(false);
     expect(hook.result.current.error).toContain('reported no sphere-sdk version');
     expect(hook.result.current.error).toContain('0.14.1-0');
   });

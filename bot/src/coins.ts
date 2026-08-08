@@ -12,7 +12,7 @@
  *   resolves it to `{ coinId, decimals }` via the SDK's `TokenRegistry` singleton.
  *
  * TokenRegistry methods used here, verified against `@unicitylabs/sphere-sdk`
- * **0.14.1** (the version this package pins):
+ * **0.14.2** (the version this package pins):
  *   - `TokenRegistry.getInstance()`
  *   - `getDefinition(coinId): TokenDefinition | undefined`
  *   - `getDefinitionBySymbol(symbol): TokenDefinition | undefined`

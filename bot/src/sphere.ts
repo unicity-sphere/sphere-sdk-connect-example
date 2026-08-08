@@ -2,7 +2,7 @@
  * Bot wallet init — the bot's OWN Sphere wallet (own keys, direct SDK usage,
  * not a Connect dApp).
  *
- * Verified against `@unicitylabs/sphere-sdk` **0.14.1** (the version this
+ * Verified against `@unicitylabs/sphere-sdk` **0.14.2** (the version this
  * package pins). The composition below is the ONLY supported one since the
  * payments-v2 flip:
  *

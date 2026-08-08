@@ -64,7 +64,7 @@ each panel drives one query / intent / event.
 > `deliveryPending: true` and **no `transferId`** — see the Send panel; never
 > re-send that (it would pay twice).
 
-**Events** (real-time push): auto-pushed `wallet:locked` · `wallet:unlocked` · `wallet:disconnected` · `identity:changed`; subscribable `transfer:incoming` · `transfer:updated` · `transfer:attention` · `inventory:updated` · `payment_request:updated` · `connection:status` · and more. Those are the sphere-sdk 0.14 names — the pre-0.14 ones (`transfer:confirmed`, `sync:*`, …) still fire, re-emitted by the host's compatibility adapter. A lock does **not** disconnect — see [CONNECT.md](CONNECT.md#wallet-lock-handling-wallet_eventslocked).
+**Events** (real-time push): auto-pushed `wallet:locked` · `wallet:unlocked` · `wallet:disconnected` · `identity:changed`; subscribable `transfer:incoming` · `transfer:updated` · `transfer:attention` · `inventory:updated` · `payment_request:updated` · `connection:status` · and more. Those are the sphere-sdk 0.14 names. Sixteen pre-0.14 names (`transfer:confirmed`, `sync:completed`, …) still fire, re-emitted by the host's compatibility adapter — but 26 others (every `invoice:*`, every `swap:*`, `sync:started`, …) were removed without one and fail *silently*, since `Sphere.on()` accepts any string. See the compat table in [CONNECT.md](CONNECT.md#events). A lock does **not** disconnect — see [CONNECT.md](CONNECT.md#wallet-lock-handling-wallet_eventslocked).
 
 ## How the connection is made
 

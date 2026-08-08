@@ -22,9 +22,12 @@ interface Props {
  *   realtime:status + storage:degraded                                -> connection:status
  *   payment_request:paid / :rejected / :expired                       -> payment_request:updated
  *
- * The old names still resolve — a wallet host re-emits every one of them from the new event
- * through a compatibility adapter, so a dApp built before 0.14 keeps working. New code should
- * use the names below; they are what the wallet actually emits.
+ * The 16 old names listed in the host's COMPAT_ATTACHERS still resolve — the wallet re-emits
+ * them from the new event through a compatibility adapter. The other 26 pre-0.14 names do NOT:
+ * `subscribe` accepts any string, so a stale subscription to e.g. `invoice:payment`,
+ * `swap:failed`, `sync:started`, `send:partial-remainder`, `transfer:invalid` or
+ * `payment_request:response` is ACCEPTED and then silently never fires. Use the names below;
+ * they are what the wallet actually emits.
  */
 export const ALL_EVENTS = [
   // Transfers
@@ -117,18 +120,27 @@ export const EVENT_COLORS: Record<string, string> = {
  * Badge style for one logged event. The name alone is not enough for
  * `transfer:updated`: a FAILED send carries the same event name as a confirmed
  * one, and green-for-failed is the miscolour that actively misleads — a dApp
- * dev reads this log to answer "did it go through?". Failed → red;
- * still-converging (deliveryPending / pending) → amber; else the table colour.
+ * dev reads this log to answer "did it go through?".
+ *
+ * The colour is driven by the SETTLED set, not by a blocklist: `TransferStatus`
+ * is `pending | submitted | confirmed | delivered | completed | failed`, and only
+ * the last three mean the money has landed. `submitted` is certification IN FLIGHT
+ * — painting it green answers "did it go through?" with yes before it is true —
+ * and a payload carrying no `status` at all has told us nothing, so neither may
+ * fall through to the green table colour.
  */
+const SETTLED_TRANSFER_STATUSES = new Set(['confirmed', 'delivered', 'completed']);
+
 export function badgeFor(event: string, data: unknown): string {
   const fallback = EVENT_COLORS[event] ?? 'bg-white/3 text-white/55';
   if (event !== 'transfer:updated') return fallback;
   const result = data as { status?: unknown; deliveryPending?: unknown } | null | undefined;
   if (result?.status === 'failed') return 'bg-red-500/15 text-red-400';
-  if (result?.deliveryPending === true || result?.status === 'pending') {
-    return 'bg-amber-500/15 text-amber-400';
+  if (result?.deliveryPending === true) return 'bg-amber-500/15 text-amber-400';
+  if (typeof result?.status === 'string' && SETTLED_TRANSFER_STATUSES.has(result.status)) {
+    return fallback;
   }
-  return fallback;
+  return 'bg-amber-500/15 text-amber-400';
 }
 
 

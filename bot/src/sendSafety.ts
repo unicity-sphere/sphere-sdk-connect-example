@@ -28,7 +28,7 @@ import { isPossiblyCommittedSendOutcome } from '@unicitylabs/sphere-sdk';
 
 /**
  * The SDK's `POSSIBLY_COMMITTED_SEND_CODES`, mirrored for the duck-typed path.
- * Verified against `@unicitylabs/sphere-sdk` 0.14.1; `sendSafety.test.ts` pins
+ * Verified against `@unicitylabs/sphere-sdk` 0.14.2; `sendSafety.test.ts` pins
  * it so an SDK bump that adds a code fails loudly here instead of silently
  * downgrading a new possibly-committed outcome to "retryable".
  */

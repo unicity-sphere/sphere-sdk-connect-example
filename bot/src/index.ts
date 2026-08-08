@@ -4,7 +4,7 @@
  * float, incoming-transfer logging, and a small stdin command loop for a
  * money-safe demo `send`.
  *
- * SDK surface used here, verified against `@unicitylabs/sphere-sdk` **0.14.1**:
+ * SDK surface used here, verified against `@unicitylabs/sphere-sdk` **0.14.2**:
  *
  * - `sphere.payments` is the payments-v2 facade. The members used below:
  *     `assets(coinId?): Promise<Asset[]>`   — the balance view (grouped by coin)
@@ -32,38 +32,17 @@
  */
 import readline from 'readline';
 import {
-  type Asset,
   type DirectMessage,
   type IncomingTransfer,
   type TransferResult,
 } from '@unicitylabs/sphere-sdk';
 import { createBotSphere } from './sphere';
 import { mayBeCommitted } from './sendSafety';
-import { fromBaseUnits, resolveCoin, toBaseUnits } from './coins';
+import { resolveCoin, toBaseUnits } from './coins';
+import { formatAssets } from './balance';
 
 const MINT_SYMBOL = 'UCT';
 const MINT_AMOUNT_HUMAN = '100';
-
-/**
- * `Asset.totalAmount` is in BASE units — `fromBaseUnits` puts the decimal point back.
- *
- * Falls back to the raw base-unit string if the coin's `decimals` is missing or
- * nonsensical. Printing a balance must never be able to kill the bot.
- */
-function formatAssets(assets: Asset[]): string {
-  if (assets.length === 0) return '(empty)';
-  return assets
-    .map((a) => {
-      let amount: string;
-      try {
-        amount = fromBaseUnits(a.totalAmount, a.decimals);
-      } catch {
-        amount = `${a.totalAmount} (base units)`;
-      }
-      return `${amount} ${a.symbol} (${a.tokenCount} token(s))`;
-    })
-    .join('\n  ');
-}
 
 async function main() {
   const { sphere, identity } = await createBotSphere();
@@ -82,7 +61,32 @@ async function main() {
     }
   });
 
-  // --- 2. Self-mint a float, once on boot (best-effort — minting may be unavailable) ---
+  // --- 2. Balance: subscribe BEFORE the first read, then mint ---
+  // The server credits a fresh mint asynchronously and signals it with
+  // `inventory:updated`. Registering the listener after the mint (or after the first
+  // `assets()` round trip, which is hundreds of ms) loses that event outright: it
+  // fires with nobody attached, and the bot prints an empty balance it never revises.
+  // Subscribe first, mint second, read third.
+  //
+  // Two inventory updates in flight means two overlapping assets() reads, which can
+  // resolve out of order — printing a stale balance AFTER a fresher one. The epoch
+  // guard drops any result that a later read already superseded, and the boot read
+  // goes through the same guard so it cannot outrun an update either. A UI refreshing
+  // on this event needs the same rule.
+  let balanceEpoch = 0;
+  const refreshBalance = () => {
+    const epoch = ++balanceEpoch;
+    void sphere.payments
+      .assets()
+      .then((assets) => {
+        if (epoch !== balanceEpoch) return; // superseded by a newer read
+        console.log('[balance]\n  ' + formatAssets(assets));
+      })
+      .catch((err) => console.error('[balance] read failed:', err instanceof Error ? err.message : err));
+  };
+  sphere.on('inventory:updated', refreshBalance);
+
+  // --- 3. Self-mint a float, once on boot (best-effort — minting may be unavailable) ---
   try {
     const { coinId, decimals } = resolveCoin(MINT_SYMBOL);
     const amount = BigInt(toBaseUnits(MINT_AMOUNT_HUMAN, decimals));
@@ -96,28 +100,13 @@ async function main() {
     console.error('[mint] self-mint threw:', err instanceof Error ? err.message : err);
   }
   // `assets()` is a view over the wallet-api inventory, and the server credits a
-  // fresh mint asynchronously — so this first read can legitimately come back empty
-  // even though the mint above certified on-chain. `inventory:updated` is the signal
-  // that the server's view caught up; that is what a UI refreshes on.
-  console.log('[balance]\n  ' + formatAssets(await sphere.payments.assets()));
+  // fresh mint asynchronously — so this boot read can legitimately come back empty
+  // even though the mint above certified on-chain. The `inventory:updated` listener
+  // registered before the mint is what prints the corrected balance when the
+  // server's view catches up; that is what a UI refreshes on.
+  refreshBalance();
 
-  // Two inventory updates in flight means two overlapping assets() reads, which can
-  // resolve out of order — printing a stale balance AFTER a fresher one. The epoch
-  // guard drops any result that a later read already superseded. A UI refreshing on
-  // this event needs the same rule.
-  let balanceEpoch = 0;
-  sphere.on('inventory:updated', () => {
-    const epoch = ++balanceEpoch;
-    void sphere.payments
-      .assets()
-      .then((assets) => {
-        if (epoch !== balanceEpoch) return; // superseded by a newer read
-        console.log('[balance]\n  ' + formatAssets(assets));
-      })
-      .catch((err) => console.error('[balance] read failed:', err instanceof Error ? err.message : err));
-  });
-
-  // --- 3. Incoming transfers (tokens are delivered to the wallet-api mailbox) ---
+  // --- 4. Incoming transfers (tokens are delivered to the wallet-api mailbox) ---
   sphere.on('transfer:incoming', (t: IncomingTransfer) => {
     console.log(`[receive] incoming transfer ${t.id} from ${t.senderNametag ?? t.senderPubkey}`);
     sphere.communications.sendDM(t.senderPubkey, 'thanks for the tokens!').catch((err) => {
@@ -137,7 +126,7 @@ async function main() {
     console.log(`[connection] ${status}`);
   });
 
-  // --- 4. Demo command loop: send / balance / pending / resume / help / exit ---
+  // --- 5. Demo command loop: send / balance / pending / resume / help / exit ---
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   function showPrompt() {
