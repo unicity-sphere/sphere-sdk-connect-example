@@ -6,16 +6,20 @@ This guide explains how to integrate a browser dApp with the Sphere wallet using
 >
 > Wallet hosts from 0.14.1 onward enforce an **SDK version floor at the handshake**. `ConnectHost`
 > applies a built-in default of `0.14.1-0` (a host may raise it via
-> `ConnectHostConfig.minSdkVersion`). `ConnectClient` reports its own npm version
-> in the handshake; a client below the floor — or one old enough not to report a version at all,
-> which is every release before 0.14.1 — is refused with `UNSUPPORTED_PROTOCOL_VERSION` (**4007**)
-> before any approval UI appears:
+> `ConnectHostConfig.minSdkVersion`). `ConnectClient` has reported its own npm version in the
+> handshake since **0.10.1**, so a client below the floor is refused by version, with that version
+> named — `UNSUPPORTED_PROTOCOL_VERSION` (**4007**), before any approval UI appears:
 >
 > ```json
 > { "code": 4007,
->   "message": "SDK version unknown (not reported) is below the required minimum 0.14.1-0",
->   "data": { "reason": "protocol_incompatible", "requiredSdk": "0.14.1-0", "actualSdk": null } }
+>   "message": "SDK version 0.13.1 is below the required minimum 0.14.1-0",
+>   "data": { "reason": "protocol_incompatible", "requiredSdk": "0.14.1-0", "actualSdk": "0.13.1" } }
 > ```
+>
+> `actualSdk` is `null` (and the message reads `unknown (not reported)`) only for a client that
+> sent no version at all — 0.9.x and 0.10.0, the two releases predating the handshake field.
+> **Do not branch on `actualSdk == null` as the "old SDK" case:** every SDK a dApp is realistically
+> built on reports a string, so that branch never fires.
 >
 > The fix is a dependency bump and a rebuild — there is no protocol change to make. Connect is
 > still **2.1**. Read `data.requiredSdk` / `data.actualSdk` and put them in your error copy;
@@ -246,9 +250,24 @@ names in new code** — they are what the wallet actually emits:
 | `payment_request:paid`, `:rejected`, `:expired` | `payment_request:updated` `{ id, status }` |
 | `transfer:incoming` | unchanged |
 
-Every old name still works: the wallet host re-emits each one from the new event through a
-compatibility adapter, so a dApp built before 0.14 keeps receiving them. Nothing a dApp
-subscribes to silently stopped firing.
+The old names in the table above still work: the wallet host re-emits each from the new event
+through a compatibility adapter, so a dApp built before 0.14 keeps receiving them.
+
+**The table is the whole list.** The payments-v2 flip removed 38 event names and gave 16 of them
+an adapter; the remaining 26 are gone for good, and they fail *silently* — `Sphere.on()` accepts
+any string, so the subscribe succeeds and then delivers nothing forever. If your dApp listens for
+any of these, it is already dead code:
+
+| Removed with no adapter | |
+|---|---|
+| `invoice:created`, `:payment`, `:covered`, `:closed`, `:overpayment`, `:expired`, `:cancelled`, `:irrelevant` | the invoicing module was deleted |
+| `swap:proposed`, `:accepted`, `:rejected`, `:cancelled`, `:concluding`, `:completed`, `:failed`, `:announced` | the swap module was deleted |
+| `sync:started`, `sync:error`, `sync:provider` | only `sync:completed` / `sync:remote-update` map to `inventory:updated` |
+| `payment_request:accepted`, `:response`, `:settling` | only `:paid` / `:rejected` / `:expired` have adapters |
+| `inventory:conflict`, `send:partial-remainder`, `transfer:invalid`, `walletapi:session` | no equivalent |
+
+Auditing a pre-0.14 dApp means checking every subscription against the table above — a silent
+subscription looks identical to one that simply has not fired yet.
 
 The four events in `AUTO_PUSHED_EVENTS` — `wallet:locked`, `wallet:unlocked`, `wallet:disconnected`, `identity:changed` — are pushed by `ConnectHost` unconditionally. Never route them through `sphere_subscribe`: `Sphere.on()` accepts any string and would silently never emit, so the subscribe would succeed and deliver nothing forever. See [Wallet Lock Handling](#wallet-lock-handling-wallet_eventslocked) below.
 
