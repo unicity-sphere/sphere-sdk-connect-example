@@ -10,7 +10,8 @@ and issues a session JWT.
 > 0.14.1 enforce an SDK version floor at the handshake and refuse older clients
 > with `UNSUPPORTED_PROTOCOL_VERSION` (4007) before any approval UI appears —
 > so an un-bumped dApp simply stops signing anybody in. `src/errors.ts`
-> (`describeVersionFloor`) turns that refusal into copy that names the required
+> (`describeHandshakeRefusal`) turns that refusal — the SDK floor, the protocol floor
+> or a network mismatch — into copy that names the required
 > version. The **backend** is unaffected: it only calls
 > `recoverPubkeyFromSignature` / `verifySignedMessage`, which are unchanged.
 

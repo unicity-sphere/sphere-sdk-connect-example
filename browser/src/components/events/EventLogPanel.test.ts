@@ -23,9 +23,10 @@ describe('EventLogPanel event list', () => {
   });
 
   // The demo is teaching material: it must subscribe to the names a current wallet
-  // actually emits. The pre-0.14 names still work through the host's compat adapter,
-  // so a stale list fails silently — nothing here would break, the panel would just
-  // quietly teach the wrong API. Pin both directions.
+  // actually emits. A stale list fails silently either way — the 16 names the host's
+  // COMPAT_ATTACHERS covers keep arriving through the adapter, and the other 26 are
+  // accepted by `subscribe` and then never fire. Neither breaks anything here; the
+  // panel would just quietly teach the wrong API. Pin both directions.
   it('uses the sphere-sdk 0.14 payments event names', () => {
     for (const event of [
       'transfer:incoming',
@@ -59,9 +60,43 @@ describe('EventLogPanel event list', () => {
       'payment_request:paid',
       'payment_request:rejected',
       'payment_request:expired',
-      // Never existed in any SDK release — the old list carried them anyway.
+      // Both WERE real in 0.13.1 (declared in SphereEventType/SphereEventMap;
+      // `:response` is emitted by PaymentsModule). The flip removed them and gave
+      // them no compat attacher, so unlike the names above they do not come back.
       'payment_request:accepted',
       'payment_request:response',
+    ]) {
+      expect(ALL_EVENTS).not.toContain(event);
+    }
+  });
+
+  // The 26 pre-0.14 names with no COMPAT_ATTACHERS entry are the dangerous ones: a
+  // subscription is ACCEPTED and then silently never fires, so listing one here would
+  // look like a working demo of an event that can no longer arrive. Whole families went
+  // this way — every `invoice:*` and every `swap:*`.
+  it('lists no pre-0.14 name the compat adapter does not re-emit', () => {
+    for (const event of [
+      'invoice:created',
+      'invoice:payment',
+      'invoice:covered',
+      'invoice:closed',
+      'invoice:overpayment',
+      'invoice:expired',
+      'invoice:cancelled',
+      'invoice:irrelevant',
+      'swap:proposed',
+      'swap:accepted',
+      'swap:rejected',
+      'swap:cancelled',
+      'swap:concluding',
+      'swap:completed',
+      'swap:failed',
+      'swap:announced',
+      'inventory:conflict',
+      'send:partial-remainder',
+      'transfer:invalid',
+      'walletapi:session',
+      'payment_request:settling',
     ]) {
       expect(ALL_EVENTS).not.toContain(event);
     }
@@ -80,15 +115,31 @@ describe('badgeFor — transfer:updated is the COMBINED outcome event', () => {
     expect(badgeFor('transfer:updated', { status: 'pending' })).toContain('amber');
   });
 
-  it('keeps the success colour for a delivered transfer and for every other event', () => {
-    expect(badgeFor('transfer:updated', { status: 'delivered', deliveryPending: false }))
-      .toBe(EVENT_COLORS['transfer:updated']);
+  // `submitted` is certification IN FLIGHT — the money has not settled. It is the one
+  // status a blocklist implementation gets wrong, because it is neither 'failed' nor
+  // 'pending' and so falls through to the success colour.
+  it('colours a SUBMITTED transfer amber — it has not settled yet', () => {
+    expect(badgeFor('transfer:updated', { status: 'submitted' })).toContain('amber');
+  });
+
+  // Green must be earned, not defaulted into: a payload with no status has told us
+  // nothing about the outcome, so it cannot answer "did it go through?" with yes.
+  it('does not paint an outcome-less payload green', () => {
+    expect(badgeFor('transfer:updated', {})).toContain('amber');
+    expect(badgeFor('transfer:updated', { status: 'something-new' })).toContain('amber');
+  });
+
+  it('keeps the success colour only for a settled transfer, and for every other event', () => {
+    for (const status of ['confirmed', 'delivered', 'completed']) {
+      expect(badgeFor('transfer:updated', { status, deliveryPending: false }))
+        .toBe(EVENT_COLORS['transfer:updated']);
+    }
     expect(badgeFor('transfer:incoming', {})).toBe(EVENT_COLORS['transfer:incoming']);
     expect(badgeFor('unknown:event', {})).toBe('bg-white/3 text-white/55');
   });
 
   it('does not crash on a null/undefined payload', () => {
-    expect(badgeFor('transfer:updated', null)).toBe(EVENT_COLORS['transfer:updated']);
-    expect(badgeFor('transfer:updated', undefined)).toBe(EVENT_COLORS['transfer:updated']);
+    expect(badgeFor('transfer:updated', null)).toContain('amber');
+    expect(badgeFor('transfer:updated', undefined)).toContain('amber');
   });
 });

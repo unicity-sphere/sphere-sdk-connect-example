@@ -5,12 +5,16 @@
  * mock-wallet-server.ts, which starts a WebSocket server as a side effect of being imported.
  *
  * It mirrors the shape a REAL sphere-sdk 0.14 wallet hands to `ConnectHost`: `payments` is the
- * payments-v2 facade (`assets()` / `tokens()` / `history()`), and `paymentsV2` is the same
- * object — the deprecated alias the host reads to decide it is talking to a v2 wallet.
+ * payments-v2 facade (`assets()` / `tokens()` / `history()` / `requests`), and `paymentsV2` is
+ * the same object — the deprecated alias the host reads to decide it is talking to a v2 wallet.
  *
- * The host only ever reads those three members plus `identity`, `resolve`, `on` and
- * `communications`, so this mock implements exactly those. Money movement never reaches the
- * facade in a Connect wallet: it arrives as an intent and is answered by `onIntent`.
+ * Money MOVEMENT never reaches the facade in a Connect wallet — it arrives as an intent and is
+ * answered by `onIntent`. Facade READS are a different matter: besides the four wire mappings
+ * below, the host's event-compat adapters read `requests.list()` and `tokens()` while rebuilding
+ * legacy event payloads. `mockSphere.on` is a no-op here, so no event can fire and those reads
+ * stay dormant — but a mock that omits what the host dereferences is a trap for the next person
+ * who gives it a real emitter, so the facade is implemented whole rather than to today's
+ * reachable subset.
  *
  * Wire mapping the host performs on top of this (dApps see it, so it's worth knowing):
  *   sphere_getBalance / sphere_getAssets -> assets(coinId?)
@@ -82,6 +86,30 @@ const payments = {
     more: false,
     cursor: null,
   }),
+  // NOT optional, despite money never reaching the facade in a Connect wallet: the host's
+  // payment_request compat adapter calls `sphere.paymentsV2?.requests.list()` to rebuild the
+  // legacy `IncomingPaymentRequest` payload whenever a `payment_request:updated` arrives.
+  // The optional chain stops at `paymentsV2`, so a missing `requests` is not a graceful
+  // degradation — it is `TypeError: Cannot read properties of undefined (reading 'list')`
+  // thrown inside ConnectHost. Processed requests stay listed until dismissProcessed(),
+  // which is why the adapter can still find a just-paid one here.
+  requests: {
+    list: () => [
+      {
+        id: 'preq-001', requestId: 'preq-001',
+        senderPubkey: '03fedcba09876543210fedcba09876543210fedcba09876543210fedcba0987654321',
+        senderNametag: 'bob', amount: '250000000', coinId: 'UCT', symbol: 'UCT',
+        message: 'lunch', timestamp: now - 1800000, status: 'pending',
+      },
+    ],
+    create: async (_to: string, _terms: { coinId: string; amount: string; memo?: string }) => ({
+      success: true,
+      requestId: 'preq-002',
+    }),
+    pay: async (_id: string) => ({ id: 'xfer-preq-001', status: 'completed', deliveryPending: false }),
+    decline: async (_id: string) => {},
+    dismissProcessed: () => {},
+  },
 };
 
 export const mockSphere = {

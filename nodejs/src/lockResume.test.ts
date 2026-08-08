@@ -35,6 +35,70 @@ describe('describeConnectFailure', () => {
       'Query timeout: sphere_getBalance',
     );
   });
+
+  // The SDK floor (4007). `actualSdk` is a version STRING for any client on sphere-sdk
+  // >= 0.10.1 — a wallet naming the version is the normal case, not the exotic one.
+  it('names both versions on an SDK-floor refusal', () => {
+    const text = describeConnectFailure(
+      new ConnectError('SDK version 0.13.1 is below the required minimum 0.14.1-0', ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION, {
+        reason: 'protocol_incompatible',
+        requiredSdk: '0.14.1-0',
+        actualSdk: '0.13.1',
+      }),
+    );
+    expect(text).toContain('0.13.1');
+    expect(text).toContain('0.14.1-0');
+  });
+
+  it('says so plainly when the client reported no version at all', () => {
+    const text = describeConnectFailure(
+      new ConnectError('SDK version unknown (not reported) is below the required minimum 0.14.1-0', ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION, {
+        reason: 'protocol_incompatible',
+        requiredSdk: '0.14.1-0',
+        actualSdk: null,
+      }),
+    );
+    expect(text).toContain('reported no sphere-sdk version');
+    expect(text).toContain('0.14.1-0');
+  });
+
+  // The protocol floor is a DIFFERENT 4007 payload — no requiredSdk, so a describer that
+  // only handles the SDK branch silently degrades to the bare message.
+  it('names both protocol versions on a protocol-floor refusal', () => {
+    const text = describeConnectFailure(
+      new ConnectError('Connect protocol 2.0 is below the required minimum 2.1', ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION, {
+        reason: 'protocol_incompatible',
+        clientProtocol: '2.0',
+        requiredProtocol: '2.1',
+      }),
+    );
+    expect(text).toContain('2.0');
+    expect(text).toContain('2.1');
+  });
+
+  // 4008 is what a dApp that forgets `network` actually hits, and the bare message
+  // ('dApp targets a different network than the wallet') names neither side.
+  it('names both networks on a network mismatch', () => {
+    const text = describeConnectFailure(
+      new ConnectError('dApp targets a different network than the wallet', ERROR_CODES.INCOMPATIBLE_NETWORK, {
+        walletNetwork: { id: 4, name: 'testnet2' },
+        clientNetwork: { id: 1, name: 'mainnet' },
+      }),
+    );
+    expect(text).toContain('testnet2');
+    expect(text).toContain('mainnet');
+  });
+
+  it('tells a dApp that declared no network what to pass', () => {
+    const text = describeConnectFailure(
+      new ConnectError('dApp targets a different network than the wallet', ERROR_CODES.INCOMPATIBLE_NETWORK, {
+        walletNetwork: { id: 4, name: 'testnet2' },
+        clientNetwork: null,
+      }),
+    );
+    expect(text).toContain('testnet2');
+    expect(text).toContain('network');
+  });
 });
 
 describe('isSameWallet', () => {

@@ -3,9 +3,10 @@
 > **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.14.2** exactly. Wallet hosts
 > from 0.14.1 enforce an SDK version floor at the Connect handshake (`ConnectHost`'s built-in
 > default is `0.14.1-0`, overridable via `ConnectHostConfig.minSdkVersion`): a client on an older
-> SDK — or one too old to report a version, i.e. anything before 0.14.1 — is refused with
-> `UNSUPPORTED_PROTOCOL_VERSION` (4007) carrying `data.requiredSdk` / `data.actualSdk`. The
-> Connect protocol is unchanged at **2.1**.
+> SDK is refused with `UNSUPPORTED_PROTOCOL_VERSION` (4007) carrying `data.requiredSdk` /
+> `data.actualSdk`. `ConnectClient` has reported its version since **0.10.1**, so `actualSdk` is
+> the reported string (`"0.13.1"`) — `null` / `"unknown (not reported)"` only reaches a host from
+> 0.9.x or 0.10.0. The Connect protocol is unchanged at **2.1**.
 
 Demonstration project with four runnable examples of working with a Sphere wallet: a **browser dApp** and a **Node.js dApp** (both use the Connect protocol to drive a user's wallet), a **bot** that runs its own wallet (direct SDK, no Connect), and a **backend-auth** flow (a frontend brokers a wallet signature, a backend verifies it and issues a JWT). The Connect module enables dApps to interact with Sphere wallets through a transport-agnostic, permission-based RPC interface.
 
@@ -342,8 +343,14 @@ Subscribable events (via `client.on()`), using the **sphere-sdk 0.14 names**:
 - `nametag:registered` / `nametag:recovered` — Nametag lifecycle
 - `address:activated` — New address tracked
 
-Every pre-0.14 name still fires: the host re-emits each one from the new event through a
-compatibility adapter, so no dApp subscription silently went dead. New code uses the names above.
+The **16** pre-0.14 names listed in the host's `COMPAT_ATTACHERS` (`connect/host/payments-compat.ts`)
+still fire — the host re-emits each from the new event through a compatibility adapter. The other
+**26** removed names do NOT, and they fail silently: `Sphere.on()` accepts any string, so the
+subscribe succeeds and then never delivers. Whole families went that way — every `invoice:*` and
+every `swap:*`, plus `sync:started` / `:error` / `:provider`, `inventory:conflict`,
+`send:partial-remainder`, `transfer:invalid`, `walletapi:session`, `payment_request:accepted` /
+`:response` / `:settling`. Auditing a pre-0.14 dApp means checking its subscriptions against the
+adapter list, not assuming they carried over. New code uses the names above;
 `browser/src/components/events/EventLogPanel.tsx` holds the canonical list this repo subscribes to.
 
 ## Connect Module Source (in sphere-sdk)
