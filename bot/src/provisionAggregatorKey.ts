@@ -6,7 +6,7 @@
  * the static `AGGREGATOR_API_KEY` testnet2 key (and its rate limit) with
  * every other example wallet.
  *
- * SDK symbols verified against `@unicitylabs/sphere-sdk` **0.14.1** (the version
+ * SDK symbols verified against `@unicitylabs/sphere-sdk` **0.14.2** (the version
  * this package pins), all exported from the SDK root:
  * - `getPublicKey(privateKey, compressed?)` and `signMessage(privateKeyHex, message)`
  *   — pure local secp256k1 crypto; no aggregator key needed to run them, which is

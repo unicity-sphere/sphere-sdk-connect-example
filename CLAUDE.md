@@ -1,6 +1,6 @@
 # CLAUDE.md - Sphere SDK Connect Example
 
-> **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.14.1** exactly. Wallet hosts
+> **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.14.2** exactly. Wallet hosts
 > from 0.14.1 enforce an SDK version floor at the Connect handshake (`ConnectHost`'s built-in
 > default is `0.14.1-0`, overridable via `ConnectHostConfig.minSdkVersion`): a client on an older
 > SDK — or one too old to report a version, i.e. anything before 0.14.1 — is refused with
@@ -136,7 +136,7 @@ Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubke
 
 All five packages pin the same published SDK version, exactly (no caret):
 ```json
-"@unicitylabs/sphere-sdk": "0.14.1"
+"@unicitylabs/sphere-sdk": "0.14.2"
 ```
 
 - **Browser / backend-auth frontend:** React 19, Vite 7

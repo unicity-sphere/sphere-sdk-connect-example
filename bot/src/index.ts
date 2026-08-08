@@ -4,7 +4,7 @@
  * float, incoming-transfer logging, and a small stdin command loop for a
  * money-safe demo `send`.
  *
- * SDK surface used here, verified against `@unicitylabs/sphere-sdk` **0.14.1**:
+ * SDK surface used here, verified against `@unicitylabs/sphere-sdk` **0.14.2**:
  *
  * - `sphere.payments` is the payments-v2 facade. The members used below:
  *     `assets(coinId?): Promise<Asset[]>`   — the balance view (grouped by coin)

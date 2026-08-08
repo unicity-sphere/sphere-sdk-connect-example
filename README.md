@@ -99,7 +99,7 @@ All five packages pin the same published SDK version, exactly (no caret — thes
 are examples, and pin clarity matters more than float):
 
 ```json
-"@unicitylabs/sphere-sdk": "0.14.1"
+"@unicitylabs/sphere-sdk": "0.14.2"
 ```
 
 ## Documentation
