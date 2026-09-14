@@ -8,7 +8,6 @@
  */
 export const SGW_CHALLENGE_PREFIX = 'unicity:sgw:auth:v1\n';
 
-const MAX_CLOCK_SKEW_MS = 5 * 60_000;
 const MAX_VALIDITY_WINDOW_MS = 60 * 60_000;
 const FIELDS = ['network', 'pubkey', 'nonce', 'issuedAt', 'expiresAt'] as const;
 
@@ -52,11 +51,17 @@ export function verifySgwChallenge(
   if (p.pubkey.toLowerCase() !== expect.pubkey.toLowerCase()) throw new SgwChallengeError('pubkey mismatch');
   if (p.nonce !== expect.nonce) throw new SgwChallengeError('nonce mismatch');
 
-  const now = expect.nowMs ?? Date.now();
   const issuedAt = Date.parse(p.issuedAt);
   const expiresAt = Date.parse(p.expiresAt);
   if (Number.isNaN(issuedAt) || Number.isNaN(expiresAt)) throw new SgwChallengeError('unparseable timestamps');
-  if (issuedAt > now + MAX_CLOCK_SKEW_MS) throw new SgwChallengeError('issuedAt too far in the future');
-  if (expiresAt <= now) throw new SgwChallengeError('challenge expired');
-  if (expiresAt - issuedAt > MAX_VALIDITY_WINDOW_MS) throw new SgwChallengeError('validity window too long');
+  // Server timestamps only, compared against each other — never against the
+  // local clock (sphere-sdk#662, and sphere PR #518 for this very file's
+  // original). The challenge is fetched, verified and signed in one run, so in
+  // the gateway's own time it is never stale, and the gateway enforces the
+  // nonce TTL on its own clock when the signature comes back. A wrong local
+  // clock would otherwise lock this bot out of the gateway permanently, with
+  // the throw happening before the request that could have proved it fine.
+  if (expiresAt <= issuedAt || expiresAt - issuedAt > MAX_VALIDITY_WINDOW_MS) {
+    throw new SgwChallengeError('implausible validity window');
+  }
 }
