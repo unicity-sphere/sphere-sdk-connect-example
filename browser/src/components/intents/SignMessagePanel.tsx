@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
 import { Button, Textarea } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
+import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
+import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -10,19 +12,25 @@ interface Props {
 export function SignMessagePanel({ intent }: Props) {
   const [message, setMessage] = useState('');
   const [raw, setRaw] = useState<unknown>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<IntentFailure | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Signing again is cheap, but a lost answer may still have cost the user an approval prompt —
+  // and a backend that treats one nonce as one signature will reject the second one. Lock and let
+  // the human decide, exactly as the value-moving panels do.
+  const unresolved = isUnresolved(failure);
+
   const execute = async () => {
-    if (!message) return;
+    if (!message || unresolved) return;
     setLoading(true);
-    setError(null);
+    setFailure(null);
     setRaw(null);
     try {
       const result = await intent(INTENT_ACTIONS.SIGN_MESSAGE, { message });
       setRaw(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      // INTENT_OUTCOME_UNKNOWN (4201) is not a refusal — see src/lib/intentFailure.ts.
+      setFailure(toIntentFailure(err));
     } finally {
       setLoading(false);
     }
@@ -40,12 +48,19 @@ export function SignMessagePanel({ intent }: Props) {
       <div className="space-y-3">
         <Textarea value={message} onChange={(e) => setMessage(e.target.value)}
           placeholder="Message to sign" rows={4} className="resize-none" />
-        <Button onClick={execute} disabled={loading || !message} className="w-full">
-          {loading ? 'Signing...' : 'Sign Message'}
+        <Button onClick={execute} disabled={loading || unresolved || !message} className="w-full">
+          {loading ? 'Signing...' : unresolved ? 'Sign Message (locked — outcome unknown)' : 'Sign Message'}
         </Button>
       </div>
 
-      <ResultDisplay result={raw} error={error} />
+      <OutcomeUnknownBanner
+        failure={failure}
+        action="sign_message"
+        reconcile="If your backend consumed the nonce, ask it for a fresh challenge instead of signing the same one again."
+        onAcknowledge={() => setFailure(null)}
+      />
+
+      <ResultDisplay result={raw} error={errorText(failure)} />
     </div>
   );
 }

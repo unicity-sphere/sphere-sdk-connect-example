@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { RPC_METHODS, INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
 import { Button, Input } from '@unicitylabs/sphere-ui';
 import { chatTime, truncate } from '../../lib/format';
+import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
+import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
 import type { ConversationSummary, ConversationPage, DirectMessage } from '../../lib/types';
 
 interface Props {
@@ -31,6 +33,8 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
   const [loading, setLoading] = useState(false);
   const [newChatRecipient, setNewChatRecipient] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /** The LAST dm intent, when Connect could not tell us whether it was delivered. */
+  const [sendFailure, setSendFailure] = useState<IntentFailure | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   // Local cache: pubkey → nametag (persists within session even if wallet doesn't return it)
@@ -119,9 +123,13 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
     } catch {}
   };
 
+  // A dm whose outcome is unknown LOCKS the composer — the peer may already have the message,
+  // and the draft is still in the box, so one Enter would send it twice.
+  const unresolved = isUnresolved(sendFailure);
+
   // Send message
   const sendMessage = async () => {
-    if (!input.trim() || sending) return;
+    if (!input.trim() || sending || unresolved) return;
     // Try: conversation data → local cache → raw pubkey
     const peerNametag = selectedPeer
       ? (conversations.find((c) => c.peerPubkey === selectedPeer)?.peerNametag ?? getNametag(selectedPeer))
@@ -135,6 +143,7 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
 
     setSending(true);
     setError(null);
+    setSendFailure(null);
     try {
       const result = await intent<{ sent: boolean; messageId?: string; timestamp?: number }>(
         INTENT_ACTIONS.DM,
@@ -154,7 +163,11 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
         await loadConversations();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send');
+      // A 4201 is NOT rendered as a red "failed to send": the wallet took the dm and only the
+      // answer was lost. It gets the reconcile banner below and locks the composer instead.
+      const failure = toIntentFailure(err);
+      setSendFailure(failure);
+      setError(errorText(failure));
     } finally {
       setSending(false);
     }
@@ -329,6 +342,18 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
             </div>
           )}
 
+          {/* Outcome unknown (4201) — the dm may already have been delivered */}
+          {unresolved && (
+            <div className="px-3">
+              <OutcomeUnknownBanner
+                failure={sendFailure}
+                action="dm"
+                reconcile="Reload the conversation before pressing Send again, or the peer gets the message twice."
+                onAcknowledge={() => setSendFailure(null)}
+              />
+            </div>
+          )}
+
           {/* Input */}
           {(selectedPeer || newChatRecipient) && (
             <div className="px-3 py-2.5 border-t border-white/8 flex gap-2">
@@ -343,12 +368,12 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
                   }
                 }}
                 placeholder="Type a message..."
-                disabled={sending}
+                disabled={sending || unresolved}
                 className="flex-1"
               />
               <Button
                 onClick={sendMessage}
-                disabled={sending || !input.trim()}
+                disabled={sending || unresolved || !input.trim()}
                 className="shrink-0"
               >
                 {sending ? '...' : 'Send'}
