@@ -35,8 +35,15 @@ Concrete examples:
 ```bash
 cd browser
 npm install
-npm run dev        # http://localhost:5174
+cp .env.example .env    # VITE_WALLET_URL + VITE_SPHERE_NETWORK (mainnet | testnet2)
+npm run dev             # http://localhost:5174
 ```
+
+> `VITE_SPHERE_NETWORK` decides which chain this build declares in its handshake
+> (default `testnet2`). It is not hard-coded for a reason: both networks are live, and
+> a bundle that can only ever mean one chain is how a build ships pointed at the wrong
+> one. A mismatch with the wallet is refused with `INCOMPATIBLE_NETWORK` (4008) before
+> any UI appears — and so is declaring no network at all.
 
 Requires a Sphere wallet reachable at `http://localhost:5173`. Open the dev URL,
 click **Connect**, approve, and each panel drives one query / intent / event.
@@ -84,12 +91,19 @@ transport). The **popup path (P3) does NOT work against the hosted wallet — it
 `sphere_getIdentity` · `sphere_getBalance` · `sphere_getAssets` · `sphere_getFiatBalance` · `sphere_getTokens` · `sphere_getHistory` · `sphere_resolve`
 
 **Intents** (open the wallet for approval):
-`send` · `mint` · `dm` · `payment_request` · `receive` · `sign_message`
+`send` · `mint` · `mint_nft` · `dm` · `payment_request` · `receive` · `sign_message`
 
-> `INTENT_ACTIONS` has **8** members: the six above plus `send_nft` (Connect 2.2,
-> scope `nft:transfer`) and `mint_nft` (Connect 2.3, scope `nft:mint`), which this
-> example does not demonstrate yet. **The Sphere wallet implements `mint_nft` and
-> answers `send_nft` with `-32601`.**
+> `INTENT_ACTIONS` has **8** members. The eighth is `send_nft` (Connect 2.2, scope
+> `nft:transfer`), which has **no panel here on purpose**: it is declared in the
+> protocol and **the Sphere wallet answers it with `-32601`**, so a panel would demo
+> a flow that cannot run. The Node example has a `sendnft` command that shows the
+> refusal instead.
+>
+> The **Mint NFT** panel drives `mint_nft` (Connect 2.3, scope `nft:mint` — its own
+> scope, because the wallet signs content this page supplies). It builds an
+> `NftContent` and puts it on the wire through `nftContentToWire()`; Connect messages
+> are JSON, so inline media bytes become base64 and every metadata field must be
+> present (`null` for the absent ones).
 
 > Amounts on `send` / `payment_request` are **base units** (an integer string —
 > convert a human amount with `parseTokenAmount(human, decimals)`); `coinId` is

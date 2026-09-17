@@ -1,14 +1,13 @@
 # CLAUDE.md - Sphere SDK Connect Example
 
-> **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.14.2** exactly. Wallet hosts
+> **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.17.2** exactly. Wallet hosts
 > from 0.14.1 enforce an SDK version floor at the Connect handshake (`ConnectHost`'s built-in
 > default is `0.14.1-0`, overridable via `ConnectHostConfig.minSdkVersion`): a client on an older
 > SDK is refused with `UNSUPPORTED_PROTOCOL_VERSION` (4007) carrying `data.requiredSdk` /
 > `data.actualSdk`. `ConnectClient` has reported its version since **0.10.1**, so `actualSdk` is
 > the reported string (`"0.13.1"`) — `null` / `"unknown (not reported)"` only reaches a host from
 > 0.9.x or 0.10.0. The Connect protocol MAJOR is unchanged at **2**, which is all the gate
-> compares; `SPHERE_CONNECT_VERSION` itself is **2.3** in sphere-sdk 0.17.2, and **2.1** in the
-> 0.14.2 the packages here pin.
+> compares; `SPHERE_CONNECT_VERSION` is **2.3** at this pin.
 
 Demonstration project with four runnable examples of working with a Sphere wallet: a **browser dApp** and a **Node.js dApp** (both use the Connect protocol to drive a user's wallet), a **bot** that runs its own wallet (direct SDK, no Connect), and a **backend-auth** flow (a frontend brokers a wallet signature, a backend verifies it and issues a JWT). The Connect module enables dApps to interact with Sphere wallets through a transport-agnostic, permission-based RPC interface.
 
@@ -42,9 +41,10 @@ sphere-sdk-connect-example/
 │   │       │   ├── TokensPanel.tsx       # sphere_getTokens (with status badges)
 │   │       │   ├── HistoryPanel.tsx      # sphere_getHistory (with type badges)
 │   │       │   └── ResolvePanel.tsx      # sphere_resolve (identifier input)
-│   │       ├── intents/             # 6 intent panels (require wallet approval)
+│   │       ├── intents/             # 7 intent panels (require wallet approval)
 │   │       │   ├── SendPanel.tsx         # send (recipient, amount, coin selector, memo)
 │   │       │   ├── MintPanel.tsx         # mint (coinId, amount)
+│   │       │   ├── MintNftPanel.tsx      # mint_nft (nftContentToWire; shows the tokenId)
 │   │       │   ├── DMPanel.tsx           # dm (recipient, message)
 │   │       │   ├── PaymentRequestPanel.tsx # payment_request (recipient, amount, coin, message)
 │   │       │   ├── ReceivePanel.tsx      # receive (button only, no params)
@@ -59,7 +59,9 @@ sphere-sdk-connect-example/
 ├── nodejs/                    # Node.js dApp — CLI over WebSocketTransport + a mock wallet
 │   ├── src/
 │   │   ├── index.ts               # Interactive CLI client (all queries + intents)
-│   │   └── mock-wallet-server.ts  # Mock wallet with rich test data
+│   │   ├── mock-wallet-server.ts  # Mock wallet with rich test data
+│   │   ├── mockSphere.ts          # The SphereInstance the host reads (shared with the tests)
+│   │   └── mockIntents.ts         # The wallet's intent answers (shared with the tests)
 │   ├── package.json
 │   └── tsconfig.json
 │
@@ -116,8 +118,12 @@ npm run client     # Connects to ws://localhost:8765
 
 CLI commands:
 - **Queries:** `identity`, `balance`, `assets`, `fiat`, `tokens`, `history`, `resolve @tag`
-- **Intents:** `send @to <amount-base-units> <coinId-hex>`, `mint <coinId-hex> <amount-base-units>`, `dm @to message`, `pay @to <amount-base-units> <coinId-hex> [message]`, `receive`, `sign message text`
+- **Intents:** `send @to <amount-base-units> <coinId-hex>`, `mint <coinId-hex> <amount-base-units>`, `mintnft [name]`, `sendnft @to <tokenId>`, `dm @to message`, `pay @to <amount-base-units> <coinId-hex> [message]`, `receive`, `sign message text`
 - **Other:** `disconnect`, `help`
+
+> `sendnft` is expected to answer **-32601**: `send_nft` is declared in Connect 2.2 and no wallet
+> implements it, so the mock refuses it exactly as the real Sphere wallet does.
+> `SPHERE_NETWORK=mainnet|testnet2` picks the network the CLI declares (default `testnet2`).
 
 > Amounts are **base units** (integer strings) and `coinId` is the lowercase 64-hex id — the contract the real wallet enforces.
 
@@ -147,7 +153,7 @@ Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubke
 
 All five packages pin the same published SDK version, exactly (no caret):
 ```json
-"@unicitylabs/sphere-sdk": "0.14.2"
+"@unicitylabs/sphere-sdk": "0.17.2"
 ```
 
 - **Browser / backend-auth frontend:** React 19, Vite 7
@@ -273,7 +279,7 @@ the option. No doc or example may present it as a production transport.
 
 ```typescript
 SPHERE_CONNECT_NAMESPACE = 'sphere-connect'
-SPHERE_CONNECT_VERSION = '2.3'   // sphere-sdk 0.17.2. '2.1' in the 0.14.2 pinned here.
+SPHERE_CONNECT_VERSION = '2.3'   // sphere-sdk 0.17.2, the pin here.
                                  // The compatibility gate compares MAJOR only.
 DEFAULT_MIN_CLIENT_SDK_VERSION = '0.14.1-0'  // the npm floor a host enforces
 HOST_READY_TYPE = 'sphere-connect:host-ready'
@@ -322,6 +328,7 @@ Sidebar + content area design:
 │ INTENTS  │                                      │
 │  Send    │                                      │
 │  Mint    │                                      │
+│  MintNFT │                                      │
 │  DM      │                                      │
 │  Pay Req │                                      │
 │  Receive │                                      │
@@ -350,7 +357,8 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 
 ### Mock Wallet Server (`nodejs/src/mock-wallet-server.ts`)
 
-- Creates `ConnectHost` with a mock `SphereInstance` (`src/mockSphere.ts`, shared with the tests). The mock is shaped like a real 0.14 wallet: `payments` is the payments-v2 facade (`assets()` / `tokens()` / paged `history()`) and `paymentsV2` is the deprecated alias `ConnectHost` reads to detect a v2 wallet
+- Creates `ConnectHost` with a mock `SphereInstance` (`src/mockSphere.ts`, shared with the tests). The mock is shaped like a real wallet: `payments` is the payments-v2 facade (`assets()` / `tokens()` / paged `history()` / `requests`). There is **no** `paymentsV2` alias — `SphereInstance` declares `payments` alone and no host path reads the old name
+- Answers `mint_nft` with a `{ tokenId }` result and `send_nft` with `-32601`, mirroring what the real Sphere wallet does
 - Auto-approves all connection requests with full permissions
 - Auto-approves all intents with action-specific success responses
 - Returns rich mock data: identity, assets (UCT + USDU with fiat/24h change), tokens (with statuses), history

@@ -23,8 +23,8 @@ This guide explains how to integrate a browser dApp with the Sphere wallet using
 >
 > The fix is a dependency bump and a rebuild — there is no protocol change to make. The gate
 > compares the protocol **MAJOR** only, and Connect has stayed on MAJOR **2** throughout
-> (`SPHERE_CONNECT_VERSION` is **2.3** in sphere-sdk 0.17.2; the version this example pins speaks
-> 2.1). Read `data.requiredSdk` / `data.actualSdk` and put them in your error copy;
+> (`SPHERE_CONNECT_VERSION` is **2.3** in sphere-sdk 0.17.2, which this example pins).
+> Read `data.requiredSdk` / `data.actualSdk` and put them in your error copy;
 > `describeConnectFailure()` in `src/lib/connectErrors.ts` does exactly that, so the user is told
 > *which* version is needed instead of a bare "incompatible".
 
@@ -407,7 +407,7 @@ if (result.locked === true) showLockedBanner();   // client.walletLocked is true
 
 ### Talking to an older wallet
 
-`SPHERE_CONNECT_VERSION` is `2.3` in sphere-sdk 0.17.2 (`2.1` in the version this example pins).
+`SPHERE_CONNECT_VERSION` is `2.3` in sphere-sdk 0.17.2, which this example pins.
 The compatibility gate compares MAJOR only, so a `2.0` wallet connects fine — but `wallet:locked`
 means the **opposite** there: the old
 (now removed) `notifyWalletLocked()` pushed it *and* revoked the session, and `wallet:unlocked`
@@ -618,7 +618,12 @@ sessionStorage.removeItem(SESSION_KEY);
 
 ```bash
 VITE_WALLET_URL=https://sphere.unicity.network  # wallet URL for P3 popup mode
+VITE_SPHERE_NETWORK=testnet2                    # mainnet | testnet2 (default testnet2)
 ```
+
+`VITE_SPHERE_NETWORK` is what `ConnectClient`'s `network` is read from. Keep it a build input
+rather than a literal: both networks are live, and a bundle that can only ever mean one chain is
+how a build ships pointed at the wrong one.
 
 ---
 
@@ -696,6 +701,7 @@ Set `VITE_WALLET_URL` in `.env.development` or `.env.local` to point to your wal
 ```bash
 VITE_WALLET_URL=https://sphere.unicity.network   # production (default)
 VITE_WALLET_URL=http://localhost:5173             # local development (Sphere wallet)
+VITE_SPHERE_NETWORK=testnet2                      # mainnet | testnet2 (default testnet2)
 ```
 
 The example dev server runs on port **5174** (see `vite.config.ts`); the Sphere wallet runs on port **5173**. The Vite config only sets `server: { port: 5174 }` — it does not enable HTTPS or load any certificates, so the dev server is served over plain `http`.

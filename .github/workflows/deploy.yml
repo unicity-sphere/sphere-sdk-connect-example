@@ -44,6 +44,9 @@ jobs:
         env:
           VITE_BASE_PATH: /sphere-sdk-connect-example/
           VITE_WALLET_URL: https://sphere.unicity.network
+          # Explicit, not left to the code default: this build is public, and which chain
+          # it declares in the handshake is not a thing to infer from a fallback.
+          VITE_SPHERE_NETWORK: testnet2
 
       # Runs after the prod build so emptyOutDir only clears dist/staging,
       # leaving the prod bundle in dist/ intact. Skips the redundant tsc -b
@@ -53,6 +56,7 @@ jobs:
         env:
           VITE_BASE_PATH: /sphere-sdk-connect-example/staging/
           VITE_WALLET_URL: https://sphere.staging.unicity.network
+          VITE_SPHERE_NETWORK: testnet2
 
       - uses: actions/upload-pages-artifact@v3
         with:

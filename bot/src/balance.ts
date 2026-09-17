@@ -6,7 +6,7 @@
  * `coins.ts`, `sendSafety.ts` and `aggregatorKey.ts` are separate modules, and this
  * is the same rule applied to the one piece of money formatting the bot does.
  *
- * Verified against `@unicitylabs/sphere-sdk` **0.14.2**: `Asset` (types/index.ts)
+ * Verified against `@unicitylabs/sphere-sdk` **0.17.2**: `Asset` (types/index.ts)
  * carries `symbol: string`, `totalAmount: string` in BASE units, `decimals: number`
  * and `tokenCount: number`.
  */
