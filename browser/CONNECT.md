@@ -21,29 +21,40 @@ This guide explains how to integrate a browser dApp with the Sphere wallet using
 > **Do not branch on `actualSdk == null` as the "old SDK" case:** every SDK a dApp is realistically
 > built on reports a string, so that branch never fires.
 >
-> The fix is a dependency bump and a rebuild — there is no protocol change to make. Connect is
-> still **2.1**. Read `data.requiredSdk` / `data.actualSdk` and put them in your error copy;
+> The fix is a dependency bump and a rebuild — there is no protocol change to make. The gate
+> compares the protocol **MAJOR** only, and Connect has stayed on MAJOR **2** throughout
+> (`SPHERE_CONNECT_VERSION` is **2.3** in sphere-sdk 0.17.2; the version this example pins speaks
+> 2.1). Read `data.requiredSdk` / `data.actualSdk` and put them in your error copy;
 > `describeConnectFailure()` in `src/lib/connectErrors.ts` does exactly that, so the user is told
 > *which* version is needed instead of a bare "incompatible".
 
 ## Quick Start
 
 ```typescript
-import { ConnectClient } from '@unicitylabs/sphere-sdk/connect';
-import { ExtensionTransport } from '@unicitylabs/sphere-sdk/connect/browser';
+import { ConnectClient, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { PostMessageTransport } from '@unicitylabs/sphere-sdk/connect/browser';
 
 const client = new ConnectClient({
-  transport: ExtensionTransport.forClient(),
+  // forClient() with no target talks to window.parent — the dApp is framed by the wallet.
+  // For the popup path pass { target: popupWindow, targetOrigin: WALLET_URL }.
+  transport: PostMessageTransport.forClient(),
   dapp: {
     name: 'My App',
     description: 'Sphere-connected dApp',
     url: location.origin,
   },
+  // REQUIRED. Both mainnet and testnet2 are live, and a handshake that declares no network is
+  // refused with INCOMPATIBLE_NETWORK (4008). Read it from your build config rather than
+  // hard-coding it, so one bundle cannot ship pointed at the wrong chain.
+  network: SPHERE_NETWORKS.testnet2,
 });
 
 const { identity, permissions } = await client.connect();
 console.log('Connected as:', identity.nametag ?? identity.chainPubkey);
 ```
+
+> `autoConnect()` from `@unicitylabs/sphere-sdk/connect/browser` does the whole transport
+> selection in one call. It takes the same `network`.
 
 ---
 
@@ -54,15 +65,24 @@ The dApp tries connection methods in priority order:
 | Priority | Mode | Transport | Persistent? | When |
 |----------|------|-----------|-------------|------|
 | P1 | Embedded iframe | `PostMessageTransport.forClient()` | Yes | dApp runs inside Sphere's own iframe |
-| P2 | Browser extension | `ExtensionTransport.forClient()` | Yes | Sphere extension is installed |
-| P3 | Popup window | `PostMessageTransport.forClient({ target: popup })` | **No** — popup must stay open | Fallback |
+| P2 | Browser extension | `ExtensionTransport.forClient()` | — | **No supported wallet is behind it** — see below |
+| P3 | Popup window | `PostMessageTransport.forClient({ target: popup })` | **No** — popup must stay open | Fallback outside the iframe |
 
-**P2 (extension)** is the best mode for production — the connection survives page navigations and requires no open windows after initial approval.
+> ### ⚠ P2 (extension) is not a production transport
+>
+> **The Sphere Chrome extension wallet is discontinued.** The SDK still exports
+> `ExtensionTransport`, and this example still contains the code path, but there is no supported
+> wallet listening on the other end: `hasExtension()` returns false on a normal browser and P2 is
+> skipped. Do not plan a production integration around it. **P1 (iframe) is the mode for a
+> long-lived session**; P3 (popup) is for a short, bounded flow.
+
+**P1 (iframe)** is what the hosted wallet uses for custom agents, and the mode a
+session-preserving lock is actually built for — one wallet window serves every framed app.
 
 **P3 (popup)** requires the Sphere popup to remain open. Closing it terminates the connection. Session IDs are saved to `sessionStorage` so page reloads can resume without re-approval.
 
 > **Why not a hidden bridge iframe?**
-> Cross-origin iframes cannot access the wallet's IndexedDB in modern Chrome (third-party storage partitioning since v115). `BroadcastChannel` is also partitioned. `requestStorageAccess()` requires a user gesture inside the iframe, which is impossible for a hidden element. For persistent connections without the extension, deploy wallet and dApp on the same origin or keep the popup open.
+> Cross-origin iframes cannot access the wallet's IndexedDB in modern Chrome (third-party storage partitioning since v115). `BroadcastChannel` is also partitioned. `requestStorageAccess()` requires a user gesture inside the iframe, which is impossible for a hidden element. For a persistent connection, run inside the wallet's own iframe (P1), deploy wallet and dApp on the same origin, or keep the popup open.
 
 ### Detection utilities
 
@@ -72,7 +92,7 @@ import { isInIframe, hasExtension } from './lib/detection';
 if (isInIframe()) {
   // P1: inside Sphere iframe
 } else if (hasExtension()) {
-  // P2: extension installed
+  // P2: extension installed — never true today, see the warning above
 } else {
   // P3: open popup
 }
@@ -82,12 +102,15 @@ if (isInIframe()) {
 
 ## Auto-Connect on Page Load
 
-When using the extension, check silently on every page load whether the origin is already approved. If yes — connect immediately. If no — show the Connect button.
+Check silently on every page load whether the origin is already approved. If yes — connect
+immediately. If no — show the Connect button. In the iframe (P1) mode this is what makes a framed
+dApp come back connected after its own reload.
 
 ```typescript
 const client = new ConnectClient({
-  transport: ExtensionTransport.forClient(),
+  transport: PostMessageTransport.forClient(),
   dapp,
+  network: SPHERE_NETWORKS.testnet2,
   silent: true,   // do NOT open any wallet UI — fail fast if not approved
 });
 
@@ -115,8 +138,8 @@ The `src/hooks/useWalletConnect.ts` hook implements the full 3-priority flow:
 ```typescript
 const wallet = useWalletConnect();
 
-// On mount: silent-checks if extension already approved this origin
-// wallet.isAutoConnecting === true while the check is in progress
+// On mount: silent-checks whether this origin is already approved (framed host, or a saved
+// popup session). wallet.isAutoConnecting === true while the check is in progress
 
 if (wallet.isAutoConnecting) {
   return <LoadingScreen />;
@@ -143,7 +166,7 @@ await wallet.intent('send', { to: '@alice', amount: '1000000000000000000', coinI
                              // THE SESSION IS STILL ALIVE
   walletChanged: boolean;    // the wallet that came back from a lock has a different pubkey
   unlockEpoch: number;       // bumps on each unlock that returned the SAME wallet
-  walletProtocol: string | null; // Connect version the WALLET reported ('2.1' | '2.0' | null)
+  walletProtocol: string | null; // Connect version the WALLET reported ('2.3' | '2.1' | null)
   identity: PublicIdentity | null;
   permissions: PermissionScope[];
   error: string | null;
@@ -211,13 +234,26 @@ await wallet.intent('receive', {});
 const { signature } = await wallet.intent('sign_message', {
   message: 'I agree to the terms',
 });
+
+// Mint an NFT (Connect 2.3). Params and result are typed in connect/nft-wire.ts.
+const { tokenId } = await wallet.intent('mint_nft', { /* MintNftIntentParams */ });
+
+// Send an NFT (Connect 2.2) — DECLARED IN THE PROTOCOL, NOT IMPLEMENTED BY THE SPHERE WALLET.
+// It answers -32601 (METHOD_NOT_FOUND). Do not build a flow on it yet.
+await wallet.intent('send_nft', { to: '@alice', tokenId: '<token id>' });
 ```
 
-> **Removed in sphere-sdk 0.14:** the invoice / accounting surface is gone —
-> `sphere_getInvoices`, `sphere_getInvoiceStatus`, the nine invoice intents and the
-> `invoice:read` / `invoice:write` scopes no longer exist. They were never enabled in any wallet
-> host. Connect stays at protocol **2.1**; the surface is simply 14 queries, 6 intents and 13
-> permission scopes now.
+> **The Connect surface today (sphere-sdk 0.17.2, protocol `SPHERE_CONNECT_VERSION` = 2.3):**
+> **14** RPC methods, **8** intents and **15** permission scopes.
+>
+> - `send_nft` arrived in Connect **2.2** with the `nft:transfer` scope; `mint_nft` in **2.3**
+>   with `nft:mint`. Minting an NFT signs dApp-chosen content as the user, so `nft:mint` is its
+>   own scope — neither `mint:request` nor `nft:transfer` implies it.
+> - **The Sphere wallet implements `mint_nft` and answers `send_nft` with `-32601`.** A protocol
+>   action is not a promise that the wallet on the other end serves it; handle `-32601`.
+> - **Removed in sphere-sdk 0.14:** the invoice / accounting surface —
+>   `sphere_getInvoices`, `sphere_getInvoiceStatus`, the nine invoice intents and the
+>   `invoice:read` / `invoice:write` scopes. They were never enabled in any wallet host.
 
 ---
 
@@ -253,8 +289,10 @@ names in new code** — they are what the wallet actually emits:
 The old names in the table above still work: the wallet host re-emits each from the new event
 through a compatibility adapter, so a dApp built before 0.14 keeps receiving them.
 
-**The table is the whole list.** The payments-v2 flip removed 38 event names and gave 16 of them
-an adapter; the remaining 26 are gone for good, and they fail *silently* — `Sphere.on()` accepts
+**The table is the whole list.** The host's `COMPAT_ATTACHERS` map
+(`connect/host/payments-compat.ts`) has **14** keys — the 13 renamed names in the table above plus
+`payment_request:incoming`, which kept its name but changed payload shape, so it needs an adapter
+too. Every other pre-0.14 name is gone for good, and they fail *silently* — `Sphere.on()` accepts
 any string, so the subscribe succeeds and then delivers nothing forever. If your dApp listens for
 any of these, it is already dead code:
 
@@ -283,10 +321,10 @@ The four events in `AUTO_PUSHED_EVENTS` — `wallet:locked`, `wallet:unlocked`, 
 await wallet.disconnect();
 ```
 
-When using the extension (P2):
+When framed by the wallet (P1):
 - `disconnect()` sends `sphere_disconnect` to the wallet
 - The wallet removes this origin from its approved origins storage
-- Next page load: silent-check will fail → Connect button is shown
+- Next page load: the silent check fails → Connect button is shown
 - User must click Connect again and approve (or re-approve)
 
 When using the popup (P3):
@@ -369,8 +407,9 @@ if (result.locked === true) showLockedBanner();   // client.walletLocked is true
 
 ### Talking to an older wallet
 
-The protocol version is `2.1` (`SPHERE_CONNECT_VERSION`). The compatibility gate compares MAJOR
-only, so a `2.0` wallet connects fine — but `wallet:locked` means the **opposite** there: the old
+`SPHERE_CONNECT_VERSION` is `2.3` in sphere-sdk 0.17.2 (`2.1` in the version this example pins).
+The compatibility gate compares MAJOR only, so a `2.0` wallet connects fine — but `wallet:locked`
+means the **opposite** there: the old
 (now removed) `notifyWalletLocked()` pushed it *and* revoked the session, and `wallet:unlocked`
 never arrives. `ConnectClient.walletProtocol` carries the wallet's version, captured at handshake:
 
@@ -412,11 +451,21 @@ try {
 }
 ```
 
-A handful of SDK failures carry no code at all — `Not connected`, `Query timeout: …`,
-`Intent timeout: …`, `Connection timeout`, `Disconnected` — so keep a **narrow** message fallback
-for exactly those. Do **not** match on `session` or `closed`: this example used to, and any typed
-refusal whose text merely mentioned a session forced a full disconnect. See
-`src/lib/connectErrors.ts`.
+Only a few SDK failures carry no code at all, and the list is shorter than it looks:
+
+| Message | Coded? |
+|---|---|
+| `Query timeout: <method>` | **No** — the query timer rejects with a bare `Error` |
+| `Connection timeout` | **No** — the connect timer |
+| `Connection rejected by wallet` | **No** — a handshake refused with no `error` payload (a host that cold-started locked) |
+| `Not connected` | **Yes** — `ConnectError` with `NOT_CONNECTED` (4001) |
+| `Disconnected` | **Yes** — 4001 for a pending *query* |
+| an intent that timed out or was cut off | **Yes** — `INTENT_OUTCOME_UNKNOWN` (**4201**), never a "timeout" message |
+
+So keep a **narrow** message fallback for the first three only. Do **not** match on `session` or
+`closed`: this example used to, and any typed refusal whose text merely mentioned a session forced
+a full disconnect. And do not match a "timeout" that names an intent — the SDK gives that a 4201
+precisely so you do not retry it. See `src/lib/connectErrors.ts`.
 
 ### Who raises the unlock UI, and when
 
@@ -516,20 +565,25 @@ restore.
 
 ## Popup Mode (P3) — Session Resume
 
-When no extension is installed, the dApp opens a Sphere popup window. **The popup must stay open** for the connection to work — closing it destroys the transport and disconnects.
+Outside the wallet's iframe, the dApp opens a Sphere popup window. **The popup must stay open** for the connection to work — closing it destroys the transport and disconnects.
 
 ### How session resume works
 
 1. **Save after connect:** After a successful popup connection, save `result.sessionId` to `sessionStorage`.
 2. **Check on mount:** On page load, check for a saved session. If found, pass `resumeSessionId` to `ConnectClient` so the wallet auto-approves without showing the consent modal again.
 3. **Include in auto-connect logic:** The saved session must be included in the `willSilentCheck` flag so the `isAutoConnecting` state starts as `true` — preventing a flash of the Connect button while session resume is attempted.
-4. **Clear on disconnect/failure/lock:** Always remove the saved session when the connection ends (user disconnect, popup closed, error, or wallet locked).
+4. **Clear when the session ends — and a LOCK is not the end.** Remove the saved session on an
+   explicit disconnect, on `wallet:disconnected`, when the popup is closed, and when a resume is
+   refused. Do **not** clear it on `wallet:locked` or on a `WALLET_LOCKED` (4009) refusal: under
+   Connect ≥ 2.1 the host keeps that session alive across the lock and will push `wallet:unlocked`
+   on it. Throwing the id away orphans a live host-side session and costs the user a re-approval
+   for a wallet that never actually disconnected.
 
 ```typescript
 const SESSION_KEY = 'sphere-connect-popup-session';
 
 // Include saved session in silent-check flag (prevents Connect button flash)
-const willSilentCheck = isInIframe() || hasExtension() || !!sessionStorage.getItem(SESSION_KEY);
+const willSilentCheck = isInIframe() || !!sessionStorage.getItem(SESSION_KEY);
 
 // After successful connect — save session
 const result = await client.connect();
@@ -553,7 +607,8 @@ if (savedSession) {
   }
 }
 
-// On disconnect, error, or wallet locked — always clear
+// On an explicit disconnect, on wallet:disconnected, or when the popup is gone — clear.
+// NOT on wallet:locked and NOT on a 4009: that session is still alive on the host.
 sessionStorage.removeItem(SESSION_KEY);
 ```
 

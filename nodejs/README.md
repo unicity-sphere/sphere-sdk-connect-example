@@ -7,8 +7,10 @@ queries, intents, and DM chat. It is the same *role* as the `browser/` example
 of the browser's postMessage/extension transports.
 
 This is the only example that exercises `WebSocketTransport`, the third Connect
-transport (the other two, `PostMessageTransport` and `ExtensionTransport`, are
-browser-only).
+transport. The other two are browser-only: `PostMessageTransport`, which is what
+a real dApp uses, and `ExtensionTransport`, which is **not a live path** — the
+SDK still exports it, but the Sphere Chrome extension wallet is discontinued and
+no supported wallet answers on it.
 
 > **Needs `@unicitylabs/sphere-sdk` ≥ 0.14.1 on both sides.** A 0.14.1 `ConnectHost`
 > enforces an SDK version floor at the handshake and refuses older clients with
@@ -99,4 +101,4 @@ const { identity } = await client.connect();
 
 ## Documentation
 
-- [../../sphere-sdk/docs/CONNECT.md](../../sphere-sdk/docs/CONNECT.md) — protocol reference
+- [sphere-sdk `docs/CONNECT.md`](https://github.com/unicity-sphere/sphere-sdk/blob/main/docs/CONNECT.md) — protocol reference

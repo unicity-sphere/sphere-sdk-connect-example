@@ -1,8 +1,15 @@
 import { ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
 
-/** Connect intent/handshake errors carry a numeric `.code` (see ConnectError in
- *  @unicitylabs/sphere-sdk/connect). Duck-type on `.code` rather than `instanceof` —
- *  the SDK's own ConnectClient comment flags instanceof as unsafe across bundles. */
+/**
+ * Connect intent/handshake errors carry a numeric `.code` (see ConnectError in
+ * @unicitylabs/sphere-sdk/connect). Duck-type on `.code` rather than `instanceof`.
+ *
+ * The reason is specific to this app's imports: **`@unicitylabs/sphere-sdk/connect/browser` ships
+ * its own copy of the Connect core**, including a second `ConnectError` class. This file's
+ * `autoConnect()` comes from that entry while `ERROR_CODES` comes from `./connect`, so
+ * `err instanceof ConnectError` would be `false` for the very errors it is meant to catch — one
+ * package, no duplicate install required. Tracked in sphere-sdk#789.
+ */
 export function isConnectErrorCode(err: unknown, code: number): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === code;
 }

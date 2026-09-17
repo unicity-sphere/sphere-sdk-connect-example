@@ -88,9 +88,19 @@ the page shows the recovered `chainPubkey` and a truncated session JWT.
 > running inside a wallet — and the popup path **does NOT work against the hosted
 > wallet (`https://sphere.unicity.network`): it returns `403`.** To test a
 > *local* frontend against the **live** wallet, load it as a **custom agent** at
-> **https://sphere.unicity.network/agents/custom** so the wallet embeds it in an
-> **iframe** (the P1 transport). Popup/localhost only works for a wallet you run
-> yourself.
+> **`https://sphere.unicity.network/agents/custom?url=<your-frontend-url>`** so
+> the wallet embeds it in an **iframe** (the P1 transport). Popup/localhost only
+> works for a wallet you run yourself.
+>
+> ⚠ **That `url` must be `https`.** The wallet frames a custom agent only when the
+> URL's protocol is `https:`. It is a protocol-only check, so `https://localhost:5173`
+> is fine — but plain `http://localhost:5173` is silently replaced by the wallet's own
+> prompt, with no error. This frontend's Vite dev server is plain http, so serve it
+> over https (a locally trusted certificate) or front it with a tunnel
+> (`cloudflared` / `ngrok`) and pass that https URL.
+>
+> `autoConnect` also has an extension path, but the Sphere Chrome extension wallet is
+> **discontinued** — nothing answers there.
 
 ## The byte-exact-challenge gotcha
 

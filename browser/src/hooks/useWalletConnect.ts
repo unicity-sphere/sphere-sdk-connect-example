@@ -1,3 +1,12 @@
+/**
+ * The dApp side of the Connect handshake: transport selection, session lifecycle, lock handling.
+ *
+ * ⚠ The P2 (extension) path below is DEAD CODE kept as a reference. The Sphere Chrome extension
+ * wallet is discontinued: the SDK still exports `ExtensionTransport`, but no supported wallet
+ * listens behind it, so `hasExtension()` is false in a normal browser and every P2 branch is
+ * skipped. The two live paths are P1 (framed by the wallet) and P3 (popup). `ConnectButton`
+ * already hides the extension option. Do not read the P2 branches as a production integration.
+ */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ConnectClient, HOST_READY_TYPE, HOST_READY_TIMEOUT, WALLET_EVENTS, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
 import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sdk/connect/browser';
@@ -21,7 +30,7 @@ export interface WalletConnectState {
   /** Bumps once per unlock that returned the SAME wallet. Read panels use it as a refetch
    *  trigger — the reference retry-after-unlock. Never used to replay an intent. */
   unlockEpoch: number;
-  /** Connect protocol version the WALLET reported at handshake ('2.1', '2.0', …), or null.
+  /** Connect protocol version the WALLET reported at handshake ('2.3', '2.1', '2.0', …), or null.
    *  Decides what wallet:locked means — see src/lib/walletProtocol.ts. */
   walletProtocol: string | null;
   identity: PublicIdentity | null;
@@ -39,7 +48,8 @@ export interface UseWalletConnect extends WalletConnectState {
   on: (event: string, handler: (data: unknown) => void) => () => void;
   /** True only during the initial silent check on page load — hides the Connect button to avoid flash. */
   isAutoConnecting: boolean;
-  /** True if the Sphere browser extension is detected. */
+  /** True if the Sphere browser extension is detected. Always false in practice — the extension
+   *  wallet is discontinued; see the note at the top of this file. */
   extensionInstalled: boolean;
   /** Raise the wallet window (popup mode only). Returns false when there is none to raise. */
   focusWallet: () => boolean;

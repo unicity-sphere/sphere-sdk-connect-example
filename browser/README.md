@@ -38,17 +38,45 @@ npm install
 npm run dev        # http://localhost:5174
 ```
 
-Requires a Sphere wallet reachable at `http://localhost:5173`, or the Sphere
-browser extension installed. Open the dev URL, click **Connect**, approve, and
-each panel drives one query / intent / event.
+Requires a Sphere wallet reachable at `http://localhost:5173`. Open the dev URL,
+click **Connect**, approve, and each panel drives one query / intent / event.
 
-> **Testing against the real (hosted) wallet — use the iframe, not a popup.**
-> To connect a *local* dApp to the **live** wallet, load it as a **custom
-> agent** inside the wallet at **https://sphere.unicity.network/agents/custom** —
-> the wallet embeds your dApp in an **iframe** and acts as the Connect host (the
-> P1 transport). The **popup path (P3) does NOT work against the hosted wallet —
-> it returns `403`.** Popup/localhost only works for a Sphere wallet you run
-> yourself at `localhost:5173`.
+> The example also contains a browser-extension path (P2), and it is **dead**: the
+> Sphere Chrome extension wallet is discontinued, so `hasExtension()` is false and the
+> code never runs. It is kept as a `ExtensionTransport` reference only — do not plan a
+> production integration around it.
+
+### Testing against the hosted wallet
+
+To connect a *local* dApp to the **live** wallet, load it as a **custom agent** inside
+the wallet:
+
+```
+https://sphere.unicity.network/agents/custom?url=https://localhost:5174
+```
+
+The wallet embeds your dApp in an **iframe** and acts as the Connect host (the P1
+transport). The **popup path (P3) does NOT work against the hosted wallet — it returns
+`403`.** Popup/localhost only works for a Sphere wallet you run yourself at
+`localhost:5173`.
+
+> ⚠ **The `url` must be `https`.** The wallet frames a custom agent only when the URL's
+> protocol is `https:` (`isHttpsUrl` in the wallet's `DesktopLayout`). It is a
+> **protocol-only** check, so `https://localhost:5174` passes — but plain
+> `http://localhost:5174` does not: the tab silently falls back to the wallet's own
+> prompt instead of showing your dApp, with no error to tell you why.
+>
+> **This dev server is plain http.** `vite.config.ts` sets only `server: { port: 5174 }`
+> — no `https`, no certificates. To get an https origin, either:
+>
+> - **enable https on Vite** — add `server.https` with a locally trusted certificate
+>   (e.g. one from `mkcert`), or run `vite --https` with the same, then load
+>   `https://localhost:5174`; or
+> - **put a tunnel in front** — `cloudflared tunnel --url http://localhost:5174`,
+>   `ngrok http 5174`, or any equivalent, and pass the public https URL.
+>
+> Whichever you pick, the browser must actually trust the certificate: a framed page
+> behind an untrusted cert cannot show its interstitial, so it just fails to load.
 
 ## What it demonstrates
 
@@ -58,13 +86,18 @@ each panel drives one query / intent / event.
 **Intents** (open the wallet for approval):
 `send` · `mint` · `dm` · `payment_request` · `receive` · `sign_message`
 
+> `INTENT_ACTIONS` has **8** members: the six above plus `send_nft` (Connect 2.2,
+> scope `nft:transfer`) and `mint_nft` (Connect 2.3, scope `nft:mint`), which this
+> example does not demonstrate yet. **The Sphere wallet implements `mint_nft` and
+> answers `send_nft` with `-32601`.**
+
 > Amounts on `send` / `payment_request` are **base units** (an integer string —
 > convert a human amount with `parseTokenAmount(human, decimals)`); `coinId` is
 > the lowercase 64-hex id. A `send` can resolve as a success with
 > `deliveryPending: true` and **no `transferId`** — see the Send panel; never
 > re-send that (it would pay twice).
 
-**Events** (real-time push): auto-pushed `wallet:locked` · `wallet:unlocked` · `wallet:disconnected` · `identity:changed`; subscribable `transfer:incoming` · `transfer:updated` · `transfer:attention` · `inventory:updated` · `payment_request:updated` · `connection:status` · and more. Those are the sphere-sdk 0.14 names. Sixteen pre-0.14 names (`transfer:confirmed`, `sync:completed`, …) still fire, re-emitted by the host's compatibility adapter — but 26 others (every `invoice:*`, every `swap:*`, `sync:started`, …) were removed without one and fail *silently*, since `Sphere.on()` accepts any string. See the compat table in [CONNECT.md](CONNECT.md#events). A lock does **not** disconnect — see [CONNECT.md](CONNECT.md#wallet-lock-handling-wallet_eventslocked).
+**Events** (real-time push): auto-pushed `wallet:locked` · `wallet:unlocked` · `wallet:disconnected` · `identity:changed`; subscribable `transfer:incoming` · `transfer:updated` · `transfer:attention` · `inventory:updated` · `payment_request:updated` · `connection:status` · and more. Those are the sphere-sdk 0.14 names. Fourteen pre-0.14 names (`transfer:confirmed`, `sync:completed`, …) still fire, re-emitted by the host's compatibility adapter — but every other one (every `invoice:*`, every `swap:*`, `sync:started`, …) was removed without an adapter and fails *silently*, since `Sphere.on()` accepts any string. See the compat table in [CONNECT.md](CONNECT.md#events). A lock does **not** disconnect — see [CONNECT.md](CONNECT.md#wallet-lock-handling-wallet_eventslocked).
 
 ## How the connection is made
 
@@ -80,6 +113,7 @@ import { isInIframe, hasExtension } from './lib/detection';
 const WALLET_URL = import.meta.env.VITE_WALLET_URL ?? 'https://sphere.unicity.network';
 
 // P1 iframe (dApp embedded in Sphere) → P2 extension → P3 popup window.
+// P2 never fires in practice: the Sphere extension wallet is discontinued.
 let transport;
 if (isInIframe()) {
   transport = PostMessageTransport.forClient();
@@ -96,11 +130,15 @@ const { identity } = await client.connect();   // silent on load if the origin i
 
 > **Prefer the one-liner?** The SDK also ships `autoConnect()` (from
 > `@unicitylabs/sphere-sdk/connect/browser`), which does this whole P1/P2/P3
-> selection in a single call — pass `walletUrl` for the popup path, and read the
-> identity from `result.connection.identity`. See
+> selection in a single call — pass `walletUrl` for the popup path and `network`,
+> and read the identity from `result.connection.identity`. Note that an error it
+> throws is **not** `instanceof` the `ConnectError` exported by
+> `@unicitylabs/sphere-sdk/connect`, because `/connect/browser` ships its own copy
+> of the Connect core (sphere-sdk#789) — duck-type on `.code`, as
+> `src/lib/connectErrors.ts` does. See
 > [`../backend-auth/frontend`](../backend-auth/frontend) for that style.
 
 ## Documentation
 
 - [CONNECT.md](CONNECT.md) — full browser dApp integration guide
-- [../../sphere-sdk/docs/CONNECT.md](../../sphere-sdk/docs/CONNECT.md) — protocol reference
+- [sphere-sdk `docs/CONNECT.md`](https://github.com/unicity-sphere/sphere-sdk/blob/main/docs/CONNECT.md) — protocol reference
