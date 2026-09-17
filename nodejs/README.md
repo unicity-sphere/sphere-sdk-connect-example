@@ -33,14 +33,15 @@ Concrete examples:
 > **Honest caveat — read before you build on this.** This example connects to a
 > **mock wallet server** (`src/mock-wallet-server.ts`), because today there is
 > **no standard Sphere wallet that exposes a WebSocket `ConnectHost`** — the
-> hosted Sphere wallet is a web app and speaks postMessage / popup / extension.
+> hosted Sphere wallet is a web app and speaks postMessage only (P1 iframe, P3 popup). Its
+> extension path (P2) is dead — the Sphere Chrome extension wallet is discontinued.
 > So treat `nodejs/` primarily as a **reference for `WebSocketTransport` and the
 > Connect message flow from Node**, not as a plug-and-play "connect to your real
 > wallet from a terminal" path.
 
 **Use a different example if:**
 
-- Your dApp runs in a **browser** → [`../browser/`](../browser) (postMessage / extension / popup).
+- Your dApp runs in a **browser** → [`../browser/`](../browser) (postMessage: P1 iframe or P3 popup, not the dead extension path).
 - Your Node process should act **from its own wallet, no approval** → [`../bot/`](../bot) (it *is* the wallet; direct SDK, no Connect).
 - You only need to **authenticate a user** (login), not move tokens → [`../backend-auth/`](../backend-auth).
 

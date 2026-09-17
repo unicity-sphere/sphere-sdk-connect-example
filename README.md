@@ -54,20 +54,26 @@ cd browser
 npm install
 npm run dev        # http://localhost:5174
 ```
-Needs a Sphere wallet reachable at `http://localhost:5173` (or the Sphere extension). See [browser/README.md](browser/README.md).
+Needs a Sphere wallet reachable at `http://localhost:5173`. See [browser/README.md](browser/README.md).
 
-> **Testing a local dApp against the real (hosted) wallet?** It only works via
-> **iframe** — load your dApp as a custom agent at
-> **`https://sphere.unicity.network/agents/custom?url=<your-dapp-url>`**. The
-> **popup path returns `403`** against the hosted wallet. (Applies to both
-> `browser/` and `backend-auth/frontend`.)
+> **Testing a local dApp against the real (hosted) wallet?** Serve the dApp over **https on a
+> publicly reachable host** — an https tunnel (`cloudflared tunnel --url http://localhost:5174`,
+> `ngrok http 5174`) is the quick way — and load that URL as a custom agent at
+> **`https://sphere.unicity.network/agents/custom?url=<your-public-https-url>`**. (Applies to
+> both `browser/` and `backend-auth/frontend`.)
 >
-> ⚠ **The URL must be `https`.** The wallet only frames a custom agent when the
-> URL's protocol is `https:` — it is a protocol-only check, so `https://localhost`
-> is accepted. A plain `http://localhost:5174` is **not** framed: the wallet
-> silently falls back to its own prompt and you never see your dApp. Both dev
-> servers here run plain `http`, so serve over https or put a tunnel in front —
-> see [browser/README.md](browser/README.md#testing-against-the-hosted-wallet).
+> ⚠ **A `localhost` / `127.0.0.1` URL in that query string never reaches the wallet.** Measured
+> with `curl` on 2026-09-17: `/agents/custom?url=https%3A%2F%2Ffoo.ngrok.app` answers **200**, and
+> so do `/connect` and `/connect?origin=https%3A%2F%2Fexample.com` — but **any** query string
+> containing `localhost` or `127.0.0.1` answers **403** from CloudFront, on every route tested,
+> with or without browser-like headers. It is a CDN/WAF rule about local URLs in the query, not
+> the wallet refusing the popup route.
+>
+> ⚠ **Independently, the `url` must be `https`.** The wallet frames a custom tab only when the
+> URL's protocol is `https:`, so a plain-http URL would not be framed even if it got through.
+>
+> Popup **and** `localhost` stay fine against a Sphere wallet **you run yourself** on
+> `localhost:5173`. See [browser/README.md](browser/README.md#testing-against-the-hosted-wallet).
 
 ### `nodejs/` — Node dApp over WebSocket
 

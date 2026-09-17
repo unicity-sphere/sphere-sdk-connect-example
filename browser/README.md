@@ -55,35 +55,58 @@ click **Connect**, approve, and each panel drives one query / intent / event.
 
 ### Testing against the hosted wallet
 
-To connect a *local* dApp to the **live** wallet, load it as a **custom agent** inside
-the wallet:
+To connect a *local* dApp to the **live** wallet, put it behind a **public https origin** and
+load that origin as a **custom agent**:
+
+```bash
+# Terminal 1 — the dev server (plain http, that is fine behind a tunnel)
+npm run dev                                   # http://localhost:5174
+
+# Terminal 2 — an https tunnel in front of it
+cloudflared tunnel --url http://localhost:5174   # or: ngrok http 5174
+```
 
 ```
-https://sphere.unicity.network/agents/custom?url=https://localhost:5174
+https://sphere.unicity.network/agents/custom?url=https://<your-tunnel-host>
 ```
 
-The wallet embeds your dApp in an **iframe** and acts as the Connect host (the P1
-transport). The **popup path (P3) does NOT work against the hosted wallet — it returns
-`403`.** Popup/localhost only works for a Sphere wallet you run yourself at
-`localhost:5173`.
+The wallet embeds your dApp in an **iframe** and acts as the Connect host (the P1 transport).
 
-> ⚠ **The `url` must be `https`.** The wallet frames a custom agent only when the URL's
-> protocol is `https:` (`isHttpsUrl` in the wallet's `DesktopLayout`). It is a
-> **protocol-only** check, so `https://localhost:5174` passes — but plain
-> `http://localhost:5174` does not: the tab silently falls back to the wallet's own
-> prompt instead of showing your dApp, with no error to tell you why.
+> ### ⚠ Two separate gates, and `localhost` fails the first one
 >
-> **This dev server is plain http.** `vite.config.ts` sets only `server: { port: 5174 }`
-> — no `https`, no certificates. To get an https origin, either:
+> **1. The CDN rejects local URLs in the query string — before the wallet sees them.**
+> Measured with `curl` on 2026-09-17 (HTTP status codes only, not a browser session):
 >
-> - **enable https on Vite** — add `server.https` with a locally trusted certificate
->   (e.g. one from `mkcert`), or run `vite --https` with the same, then load
->   `https://localhost:5174`; or
-> - **put a tunnel in front** — `cloudflared tunnel --url http://localhost:5174`,
->   `ngrok http 5174`, or any equivalent, and pass the public https URL.
+> | Request | Status |
+> |---|---|
+> | `GET /connect` | **200** |
+> | `GET /connect?origin=https%3A%2F%2Fexample.com` | **200** |
+> | `GET /agents/custom?url=https%3A%2F%2Ffoo.ngrok.app` | **200** |
+> | **any** route with `localhost` or `127.0.0.1` anywhere in the query | **403** |
 >
-> Whichever you pick, the browser must actually trust the certificate: a framed page
-> behind an untrusted cert cannot show its interstitial, so it just fails to load.
+> The 403 body is CloudFront's ("ERROR: The request could not be satisfied"), it reproduces on
+> every route tested (`/connect?origin=…`, `/agents/custom?url=…`) with and without browser-like
+> `User-Agent` / `Accept` headers, and it is **not** specific to `/connect`. So it is a CDN/WAF
+> rule about local URLs in the query — **not** the hosted wallet refusing the popup route. Any
+> `?url=https://localhost:5174` is answered by the CDN and never reaches the wallet.
+>
+> **2. The wallet frames a custom tab only when the URL is `https`.** `isHttpsUrl` in the
+> wallet's `src/components/desktop/DesktopLayout.tsx` is a **protocol-only** check, so a
+> plain-http tunnel URL would not be framed even if gate 1 let it through: the tab silently
+> falls back to the wallet's own prompt, with no error to tell you why.
+>
+> A public https tunnel clears both. `mkcert` + `vite --https` gives you
+> `https://localhost:5174`, which clears gate 2 but **not** gate 1, so it is no use in this
+> query string.
+>
+> **Not tested end to end:** the wallet's in-app *Load Custom URL* prompt. Typing an https URL
+> there carries no query string, so gate 1 does not apply and only the `isHttpsUrl` gate should
+> — but nobody has run that path through, so treat it as untested rather than as a second
+> supported route.
+>
+> **Popup and `localhost` stay fine against a wallet you run yourself** — the sphere dev server
+> on `http://localhost:5173`. Nothing above applies there; it is the hosted deployment's CDN
+> that has the rule.
 
 ## What it demonstrates
 
