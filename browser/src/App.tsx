@@ -20,6 +20,7 @@ import { PaymentRequestPanel } from './components/intents/PaymentRequestPanel';
 import { ReceivePanel } from './components/intents/ReceivePanel';
 import { SignMessagePanel } from './components/intents/SignMessagePanel';
 import { MintPanel } from './components/intents/MintPanel';
+import { MintNftPanel } from './components/intents/MintNftPanel';
 
 // Chat
 import { ChatPanel } from './components/chat/ChatPanel';
@@ -78,6 +79,7 @@ export default function App() {
     'receive': <ReceivePanel intent={intent} />,
     'sign-message': <SignMessagePanel intent={intent} />,
     'mint': <MintPanel intent={intent} />,
+    'mint-nft': <MintNftPanel intent={intent} />,
     'chat': <ChatPanel query={query} intent={intent} on={on} walletPubkey={wallet.identity!.chainPubkey} isWalletLocked={wallet.isWalletLocked} unlockEpoch={wallet.unlockEpoch} />,
     'events': <EventLogPanel on={on} />,
     'docs': <DocsPanel />,

@@ -6,8 +6,14 @@
  *   2. Run client:        npx tsx src/index.ts
  */
 
-import { ConnectClient, ERROR_CODES, RPC_METHODS, INTENT_ACTIONS, SPHERE_NETWORKS, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect';
-import type { PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
+import { ConnectClient, ERROR_CODES, RPC_METHODS, INTENT_ACTIONS, SPHERE_NETWORKS, WALLET_EVENTS, nftContentToWire } from '@unicitylabs/sphere-sdk/connect';
+import type {
+  MintNftIntentParams,
+  MintNftIntentResult,
+  NftContent,
+  NetworkInfo,
+  PublicIdentity,
+} from '@unicitylabs/sphere-sdk/connect';
 import { WebSocketTransport } from '@unicitylabs/sphere-sdk/connect/nodejs';
 import { describeConnectFailure, isSameWallet } from './lockResume';
 import WebSocket from 'ws';
@@ -15,8 +21,26 @@ import readline from 'readline';
 
 const WS_URL = process.argv[2] ?? 'ws://localhost:8765';
 
+/**
+ * The network this dApp targets. Not hard-coded: both mainnet and testnet2 are live, a handshake
+ * that declares the wrong one is refused with INCOMPATIBLE_NETWORK (4008), and one binary that
+ * can only ever mean "testnet2" is the kind of thing that ships pointed at the wrong chain.
+ *
+ * SPHERE_NETWORK=mainnet|testnet2, defaulting to testnet2 — the mock wallet's networkId is 4.
+ */
+function targetNetwork(): NetworkInfo {
+  const name = process.env.SPHERE_NETWORK ?? 'testnet2';
+  const network = (SPHERE_NETWORKS as Record<string, NetworkInfo | undefined>)[name];
+  if (!network) {
+    const known = Object.keys(SPHERE_NETWORKS).join(', ');
+    throw new Error(`Unknown SPHERE_NETWORK "${name}". Known networks: ${known}.`);
+  }
+  return network;
+}
+
 async function main() {
-  console.log(`Connecting to wallet at ${WS_URL}...`);
+  const network = targetNetwork();
+  console.log(`Connecting to wallet at ${WS_URL} on ${network.name ?? 'custom'} (${network.id})...`);
 
   const transport = WebSocketTransport.createClient({
     url: WS_URL,
@@ -33,7 +57,7 @@ async function main() {
       description: 'Sphere Connect Node.js demo',
       url: 'cli://local',
     },
-    network: SPHERE_NETWORKS.testnet2,
+    network,
   });
 
   const result = await client.connect();
@@ -190,6 +214,51 @@ async function main() {
             console.log('Mint result:', JSON.stringify(mintResult, null, 2));
             break;
           }
+          case 'mintnft': {
+            // The mint_nft intent (Connect 2.3, scope `nft:mint`). Connect messages are JSON, so
+            // NftContent goes over the wire through nftContentToWire() — it base64s every inline
+            // NftMedia.bytes and copies the rest. Build the CONTENT in its natural form and let
+            // the codec do the conversion; hand-rolling the JSON is how a payload drifts.
+            const nftName = parts.slice(1).join(' ') || 'Connect Example NFT';
+            const content: NftContent = {
+              kind: 'metadata',
+              name: nftName,
+              description: 'Minted from the Sphere Connect Node.js example',
+              // Every field is REQUIRED on the wire: an absent optional field is null, not
+              // missing. nftContentFromWire refuses a metadata object with a field left out.
+              image: null,
+              animation_url: null,
+              external_url: null,
+              attributes: [{ trait_type: 'source', value: 'connect-example' }],
+              collection: null,
+              collection_id: null,
+            };
+            // sign defaults to true: the wallet wraps the payload with its chain key as creator.
+            const mintNftParams: MintNftIntentParams = { content: nftContentToWire(content) };
+            const mintNftResult = await client.intent<MintNftIntentResult>(
+              INTENT_ACTIONS.MINT_NFT,
+              mintNftParams,
+            );
+            console.log('Mint NFT result — tokenId:', mintNftResult.tokenId);
+            break;
+          }
+          case 'sendnft': {
+            // DECLARED in Connect 2.2, NOT implemented by the Sphere wallet: expect -32601.
+            // Kept as a live demonstration — a protocol action is not a promise that the wallet
+            // on the other end serves it, and that is worth seeing rather than reading.
+            const nftTo = parts[1];
+            const nftTokenId = parts[2];
+            if (!nftTo || !nftTokenId) {
+              console.log('Usage: sendnft @nametag <tokenId-hex>   (expect -32601 — no wallet implements it yet)');
+              break;
+            }
+            const sendNftResult = await client.intent(INTENT_ACTIONS.SEND_NFT, {
+              to: nftTo.startsWith('@') ? nftTo : '@' + nftTo,
+              tokenId: nftTokenId,
+            });
+            console.log('Send NFT result:', JSON.stringify(sendNftResult, null, 2));
+            break;
+          }
           case 'dm': {
             const dmTo = parts[1];
             const message = parts.slice(2).join(' ');
@@ -300,6 +369,9 @@ Commands:
   INTENTS (require wallet approval)
     send @to <amount> <coinId>       - Send L3 tokens (amount in smallest units, coinId lowercase hex)
     mint <coinId> <amount>           - Self-mint a fungible token (coinId = lowercase hex)
+    mintnft [name]                   - Mint an NFT (Connect 2.3, scope nft:mint); prints the tokenId
+    sendnft @to <tokenId>            - Move an NFT (Connect 2.2) — DECLARED but not implemented
+                                       by any wallet: expect -32601
     dm @to message                   - Send direct message
     pay @to <amount> <coinId> [msg]  - Send payment request (amount in smallest units, coinId lowercase hex)
     receive                          - Receive incoming tokens

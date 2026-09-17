@@ -35,8 +35,15 @@ Concrete examples:
 ```bash
 cd browser
 npm install
-npm run dev        # http://localhost:5174
+cp .env.example .env    # VITE_WALLET_URL + VITE_SPHERE_NETWORK (mainnet | testnet2)
+npm run dev             # http://localhost:5174
 ```
+
+> `VITE_SPHERE_NETWORK` decides which chain this build declares in its handshake
+> (default `testnet2`). It is not hard-coded for a reason: both networks are live, and
+> a bundle that can only ever mean one chain is how a build ships pointed at the wrong
+> one. A mismatch with the wallet is refused with `INCOMPATIBLE_NETWORK` (4008) before
+> any UI appears — and so is declaring no network at all.
 
 Requires a Sphere wallet reachable at `http://localhost:5173`. Open the dev URL,
 click **Connect**, approve, and each panel drives one query / intent / event.
@@ -107,13 +114,26 @@ The wallet embeds your dApp in an **iframe** and acts as the Connect host (the P
 `sphere_getIdentity` · `sphere_getBalance` · `sphere_getAssets` · `sphere_getFiatBalance` · `sphere_getTokens` · `sphere_getHistory` · `sphere_resolve`
 
 **Intents** (open the wallet for approval):
-`send` · `mint` · `dm` · `payment_request` · `receive` · `sign_message`
+`send` · `mint` · `mint_nft` · `dm` · `payment_request` · `receive` · `sign_message`
 
-> `INTENT_ACTIONS` has **8** members **in sphere-sdk 0.17.2**: the six above plus `send_nft`
-> (Connect 2.2, scope `nft:transfer`) and `mint_nft` (Connect 2.3, scope `nft:mint`), which this
-> example does not demonstrate yet. **The Sphere wallet implements `mint_nft` and answers
-> `send_nft` with `-32601`.** ⚠ **Both need a 0.17.x client** — this package still pins
-> **0.14.2**, where `INTENT_ACTIONS` is the six above and `SPHERE_CONNECT_VERSION` is `2.1`.
+> `INTENT_ACTIONS` has **8** members. The eighth is `send_nft` (Connect 2.2, scope
+> `nft:transfer`), which has **no panel here on purpose**: it is declared in the
+> protocol and **the Sphere wallet answers it with `-32601`**, so a panel would demo
+> a flow that cannot run. The Node example has a `sendnft` command that shows the
+> refusal instead.
+>
+> The **Mint NFT** panel drives `mint_nft` (Connect 2.3, scope `nft:mint` — its own
+> scope, because the wallet signs content this page supplies). It builds an
+> `NftContent` and puts it on the wire through `nftContentToWire()`; Connect messages
+> are JSON, so inline media bytes become base64 and every metadata field must be
+> present (`null` for the absent ones).
+>
+> Its optional image is an `NftLink`, so it asks for the file's **SHA-256** and media type as
+> well as the URI, and refuses to submit without them. The wire codec checks shape and base64
+> only — `sha256: ''` passes it — while `encodeNftContent`, which a wallet runs before it signs,
+> requires the 64-hex digest of the linked file and an `https://`, `ipfs://` or `ar://` URI. A
+> demo that shipped an empty digest would build content the wallet must refuse. The panel can
+> fetch the file and compute the digest for you when the host allows the cross-origin read.
 
 > Amounts on `send` / `payment_request` are **base units** (an integer string —
 > convert a human amount with `parseTokenAmount(human, decimals)`); `coinId` is
