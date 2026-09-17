@@ -259,10 +259,6 @@ Use `bundler` or `node16` resolution instead. Only reach for `paths` under
 wallet on the other end serves it. `nft:mint` is a scope of its own because minting an NFT signs
 dApp-chosen content as the user; neither `mint:request` nor `nft:transfer` implies it.
 
-⚠ **The last two rows need a 0.17.x client.** The pin here is still **0.14.2**, whose
-`INTENT_ACTIONS` has the first six members only and whose `SPHERE_CONNECT_VERSION` is `2.1`.
-`send_nft` / `mint_nft` cannot be issued from this checkout until the pin moves.
-
 ### Connection Flow
 
 1. **dApp** opens wallet popup/iframe or WebSocket connection
