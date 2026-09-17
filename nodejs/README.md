@@ -7,8 +7,10 @@ queries, intents, and DM chat. It is the same *role* as the `browser/` example
 of the browser's postMessage/extension transports.
 
 This is the only example that exercises `WebSocketTransport`, the third Connect
-transport (the other two, `PostMessageTransport` and `ExtensionTransport`, are
-browser-only).
+transport. The other two are browser-only: `PostMessageTransport`, which is what
+a real dApp uses, and `ExtensionTransport`, which is **not a live path** — the
+SDK still exports it, but the Sphere Chrome extension wallet is discontinued and
+no supported wallet answers on it.
 
 > **Needs `@unicitylabs/sphere-sdk` ≥ 0.14.1 on both sides.** A 0.14.1 `ConnectHost`
 > enforces an SDK version floor at the handshake and refuses older clients with
@@ -31,14 +33,15 @@ Concrete examples:
 > **Honest caveat — read before you build on this.** This example connects to a
 > **mock wallet server** (`src/mock-wallet-server.ts`), because today there is
 > **no standard Sphere wallet that exposes a WebSocket `ConnectHost`** — the
-> hosted Sphere wallet is a web app and speaks postMessage / popup / extension.
+> hosted Sphere wallet is a web app and speaks postMessage only (P1 iframe, P3 popup). Its
+> extension path (P2) is dead — the Sphere Chrome extension wallet is discontinued.
 > So treat `nodejs/` primarily as a **reference for `WebSocketTransport` and the
 > Connect message flow from Node**, not as a plug-and-play "connect to your real
 > wallet from a terminal" path.
 
 **Use a different example if:**
 
-- Your dApp runs in a **browser** → [`../browser/`](../browser) (postMessage / extension / popup).
+- Your dApp runs in a **browser** → [`../browser/`](../browser) (postMessage: P1 iframe or P3 popup, not the dead extension path).
 - Your Node process should act **from its own wallet, no approval** → [`../bot/`](../bot) (it *is* the wallet; direct SDK, no Connect).
 - You only need to **authenticate a user** (login), not move tokens → [`../backend-auth/`](../backend-auth).
 
@@ -99,4 +102,4 @@ const { identity } = await client.connect();
 
 ## Documentation
 
-- [../../sphere-sdk/docs/CONNECT.md](../../sphere-sdk/docs/CONNECT.md) — protocol reference
+- [sphere-sdk `docs/CONNECT.md`](https://github.com/unicity-sphere/sphere-sdk/blob/main/docs/CONNECT.md) — protocol reference

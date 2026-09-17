@@ -11,7 +11,9 @@ import { describeError, isWalletLocked } from './errors';
  * the backend, which independently recovers the signer from the signature.
  *
  * Flow:
- *  1. autoConnect() to the wallet (iframe/extension/popup, whichever applies).
+ *  1. autoConnect() to the wallet. It tries iframe, then extension, then popup;
+ *     in practice that means iframe or popup, because the Sphere Chrome
+ *     extension wallet is discontinued and nothing answers the extension path.
  *  2. GET /challenge?chainPubkey=<connected identity> — binds the challenge
  *     text to this wallet as a hint (the backend re-verifies, never trusts it).
  *  3. Ask the wallet to sign the returned `challenge` string VERBATIM via the

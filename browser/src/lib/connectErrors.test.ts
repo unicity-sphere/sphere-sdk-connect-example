@@ -43,15 +43,35 @@ describe('classifyRequestError', () => {
     expect(classifyRequestError(new ConnectError('Gesperrt', ERROR_CODES.WALLET_LOCKED, { reason: 'locked' }))).toBe('locked');
   });
 
-  it('falls back to message text for the SDK errors that carry no code at all', () => {
-    // SphereError('Not connected', …) — ConnectClient.query/intent before a handshake.
-    // SphereError.code is a STRING, so these never reach the coded branch.
-    expect(classifyRequestError(new Error('Not connected'))).toBe('teardown');
+  // The genuinely codeless failures, verified against connect/client/ConnectClient.ts: the query
+  // timer and the connect timer reject with a bare `new Error(...)`, and this example's own
+  // ensureClient() throws one when the popup is gone.
+  it('falls back to message text for the failures that carry no code at all', () => {
     expect(classifyRequestError(new Error('Query timeout: sphere_getBalance'))).toBe('teardown');
-    expect(classifyRequestError(new Error('Intent timeout: send'))).toBe('teardown');
     expect(classifyRequestError(new Error('Connection timeout'))).toBe('teardown');
-    expect(classifyRequestError(new Error('Disconnected'))).toBe('teardown');
     expect(classifyRequestError(new Error('Wallet popup was closed'))).toBe('teardown');
+  });
+
+  // 'Not connected' and 'Disconnected' are ConnectErrors carrying NOT_CONNECTED (4001) — they are
+  // settled by the CODE, never by this text. The old comment claimed they were codeless.
+  it('settles the SDK disconnection errors on their code, not their text', () => {
+    expect(classifyRequestError(new ConnectError('Not connected', ERROR_CODES.NOT_CONNECTED))).toBe('teardown');
+    expect(classifyRequestError(new ConnectError('Disconnected', ERROR_CODES.NOT_CONNECTED))).toBe('teardown');
+  });
+
+  // There is no 'Intent timeout: …' message in the SDK: the intent timer rejects with a TYPED
+  // INTENT_OUTCOME_UNKNOWN (4201), because the wallet already had the intent. Matching that text
+  // as a teardown would have been backwards, so the pattern was removed.
+  it('does not treat a codeless failure that names an intent as a teardown', () => {
+    expect(classifyRequestError(new Error('Intent timeout: send'))).toBe('other');
+  });
+
+  it('classifies a real timed-out intent by its code', () => {
+    const err = new ConnectError(
+      'Intent outcome unknown — do not retry; reconcile before acting: send',
+      ERROR_CODES.INTENT_OUTCOME_UNKNOWN,
+    );
+    expect(classifyRequestError(err)).toBe('outcome-unknown');
   });
 
   it('does not tear down on an unknown codeless failure', () => {

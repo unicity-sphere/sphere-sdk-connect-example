@@ -6,10 +6,22 @@
  * down on it orphans a host-side session that now survives, and the next silent autoConnect
  * reconnects with no prompt.
  *
- * Discriminate on the numeric `.code` — duck-typed, not `instanceof ConnectError`, which the
- * SDK's own client flags as unsafe across bundle copies. The refusal TEXT is never consulted
- * for a coded error: 'Wallet is locked' is a documented recommendation, not a wire contract.
- * Message text is used ONLY for the failures the SDK raises with no code at all.
+ * Discriminate on the numeric `.code`, duck-typed — NOT `instanceof ConnectError`.
+ *
+ * The reason is concrete, and it is not "a dApp and its dependencies each bundled the SDK":
+ * **`@unicitylabs/sphere-sdk/connect/browser` ships its own copy of the Connect core.** That
+ * entry inlines a second `ConnectClient`, `ConnectError`, protocol and permissions table, so an
+ * error thrown by `autoConnect()` is an instance of a DIFFERENT `ConnectError` class than the one
+ * `@unicitylabs/sphere-sdk/connect` exports — `err instanceof ConnectError` is simply `false`,
+ * inside one package, with no second copy of the SDK anywhere. It fails at the type level too
+ * ("separate declarations of a private property 'transport'"), which is why our other frontends
+ * carry `as unknown as ConnectClient` casts. Tracked in sphere-sdk#789.
+ *
+ * Duck-typing on `.code` is immune to all of that and is what every workspace consumer does.
+ *
+ * The refusal TEXT is never consulted for a coded error: 'Wallet is locked' is a documented
+ * recommendation, not a wire contract. Message text is used ONLY for the handful of failures the
+ * SDK really does raise with no code at all.
  */
 import { ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
 import type { WalletLockedData } from '@unicitylabs/sphere-sdk/connect';
@@ -54,19 +66,35 @@ export function lockedData(err: unknown): WalletLockedData | undefined {
 }
 
 /**
- * Codeless SDK failures that really do mean "the connection is gone":
- *   'Not connected'            — SphereError from ConnectClient.query/intent before a handshake
- *   'Query timeout: <method>'  — ConnectClient.query timer
- *   'Intent timeout: <action>' — ConnectClient.intent timer
- *   'Connection timeout'       — ConnectClient.connect timer
- *   'Disconnected'             — ConnectClient.cleanup() rejecting in-flight requests
- *   'Wallet popup was closed'  — this example's own ensureClient()
+ * The message fallback, for failures that carry no code at all.
+ *
+ * There are fewer of these than this comment used to claim. Verified against the SDK source
+ * (`connect/client/ConnectClient.ts`), the genuinely codeless ones are:
+ *   'Query timeout: <method>'        — the query timer: `reject(new Error(...))`
+ *   'Connection timeout'             — the connect timer
+ *   'Connection rejected by wallet'  — a handshake refused with no `error` payload, which is what
+ *                                      a host that cold-started LOCKED sends. It is a HANDSHAKE
+ *                                      failure, so it reaches describeConnectFailure(), not this.
+ *   'Wallet popup was closed'        — this example's own ensureClient()
+ *
+ * What is NOT codeless, contrary to the old list:
+ *   'Not connected' — a ConnectError with NOT_CONNECTED (4001), thrown by query()/intent() before
+ *                     a handshake. It reaches the coded branch above, not this regex.
+ *   'Disconnected'  — a ConnectError with NOT_CONNECTED (4001) from cleanup(), for a pending
+ *                     QUERY. A pending INTENT is rejected with INTENT_OUTCOME_UNKNOWN (4201)
+ *                     instead, deliberately: the wallet already had it.
+ *   'Intent timeout: …' — no such message exists. The intent timer rejects with a typed
+ *                     INTENT_OUTCOME_UNKNOWN (4201), for the same reason. Matching that text as a
+ *                     teardown would have been exactly backwards, so the pattern is gone.
+ *
+ * The 'not connected' / 'disconnected' words stay in the pattern as belt and braces for a peer or
+ * an older client that lost the code; today the coded branch settles both first.
  *
  * Deliberately contains neither "session" nor a bare "closed": the regex this replaces matched
  * both, so any typed refusal that merely mentioned a session forced a full disconnect.
  */
 const CODELESS_TEARDOWN =
-  /\b(not connected|disconnected|connection timeout|query timeout|intent timeout|popup was closed)\b/i;
+  /\b(not connected|disconnected|connection timeout|query timeout|popup was closed)\b/i;
 
 /** A non-empty string field of an untrusted `data` bag, or null. */
 function text(value: unknown): string | null {

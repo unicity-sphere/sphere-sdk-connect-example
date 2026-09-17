@@ -6,7 +6,9 @@
 > SDK is refused with `UNSUPPORTED_PROTOCOL_VERSION` (4007) carrying `data.requiredSdk` /
 > `data.actualSdk`. `ConnectClient` has reported its version since **0.10.1**, so `actualSdk` is
 > the reported string (`"0.13.1"`) — `null` / `"unknown (not reported)"` only reaches a host from
-> 0.9.x or 0.10.0. The Connect protocol is unchanged at **2.1**.
+> 0.9.x or 0.10.0. The Connect protocol MAJOR is unchanged at **2**, which is all the gate
+> compares; `SPHERE_CONNECT_VERSION` itself is **2.3** in sphere-sdk 0.17.2, and **2.1** in the
+> 0.14.2 the packages here pin.
 
 Demonstration project with four runnable examples of working with a Sphere wallet: a **browser dApp** and a **Node.js dApp** (both use the Connect protocol to drive a user's wallet), a **bot** that runs its own wallet (direct SDK, no Connect), and a **backend-auth** flow (a frontend brokers a wallet signature, a backend verifies it and issues a JWT). The Connect module enables dApps to interact with Sphere wallets through a transport-agnostic, permission-based RPC interface.
 
@@ -91,6 +93,26 @@ npm run dev        # Vite dev server on http://localhost:5174
 
 Requires a wallet app running at `http://localhost:5173` (the Sphere wallet).
 
+To drive the **hosted** wallet instead, put the dApp behind a **public https origin** (an https
+tunnel over the plain-http Vite server) and load that origin as a custom agent:
+`https://sphere.unicity.network/agents/custom?url=<public-https-url>`. Two independent gates:
+
+1. **CloudFront rejects local URLs in the query string.** Measured with `curl` on 2026-09-17:
+   `/connect` → **200**, `/connect?origin=https%3A%2F%2Fexample.com` → **200**,
+   `/agents/custom?url=https%3A%2F%2Ffoo.ngrok.app` → **200**, but **any** query string
+   containing `localhost` or `127.0.0.1` → **403** on every route tested, with or without
+   browser-like headers. It is a CDN/WAF rule about local URLs in the query — **not** the wallet
+   refusing the popup route, and **not** specific to `/connect`. Never write "the popup path
+   returns 403" again.
+2. **The wallet frames a custom tab only when the `url` is `https`** — `isHttpsUrl` in the
+   wallet's `src/components/desktop/DesktopLayout.tsx`, a protocol-only check. A plain-http URL
+   is silently replaced by the wallet's own prompt.
+
+`mkcert` + `vite --https` clears gate 2 but not gate 1, so `https://localhost:5174` is still
+useless in that query string. The wallet's in-app *Load Custom URL* prompt carries no query
+string and should only face gate 2, but that path is **untested**. Popup and `localhost` remain
+fine against a Sphere wallet you run yourself on 5173. See `browser/README.md`.
+
 ### Node.js CLI
 
 ```bash
@@ -131,7 +153,7 @@ cd backend-auth/backend  && npm install && cp .env.example .env && npm start
 cd backend-auth/frontend && npm install && cp .env.example .env && npm run dev
 ```
 
-Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubkeyFromSignature` and issues a JWT keyed on `chainPubkey`. To test against the **real hosted wallet**, load a dApp via the iframe custom-agent at `https://sphere.unicity.network/agents/custom` — the popup path returns `403`.
+Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubkeyFromSignature` and issues a JWT keyed on `chainPubkey`. To test against the **real hosted wallet**, put the frontend behind a public https origin (a tunnel) and load it via the iframe custom-agent at `https://sphere.unicity.network/agents/custom?url=<public-https-url>` — a `localhost`/`127.0.0.1` URL in that query string is 403ed by CloudFront before the wallet sees it, and the `url` must be `https` for the wallet to frame it (see the Browser dApp note above).
 
 ## Dependencies
 
@@ -177,17 +199,21 @@ import type { PublicIdentity, DAppMetadata, PermissionScope, ConnectResult }
   from '@unicitylabs/sphere-sdk/connect';
 ```
 
-### TypeScript Path Aliases (Browser)
+### No tsconfig `paths` for the connect subpaths
 
-The browser `tsconfig.json` requires explicit path mappings for connect submodule imports:
-```json
-{
-  "paths": {
-    "@unicitylabs/sphere-sdk/connect": ["./node_modules/@unicitylabs/sphere-sdk/dist/connect/index.d.ts"],
-    "@unicitylabs/sphere-sdk/connect/browser": ["./node_modules/@unicitylabs/sphere-sdk/dist/impl/browser/connect/index.d.ts"]
-  }
-}
-```
+Both frontends set `"moduleResolution": "bundler"`, which reads the package's `exports` map, so
+`@unicitylabs/sphere-sdk/connect` and `.../connect/browser` resolve on their own. The `paths`
+blocks that used to pin them at `dist/**/index.d.ts` have been **deleted** — `tsc --noEmit`
+produces the same 0 diagnostics without them in `browser/` and `backend-auth/frontend/`.
+
+They were not merely redundant, they were a liability: a hand-written path binds the build to one
+file layout inside the SDK's `dist/`, so a packaging change (sphere-sdk#789 reshapes exactly these
+Connect outputs) turns into `TS2307` — or, worse, if only the `.d.ts` moves and the sibling `.js`
+stays, TypeScript binds the stale path to the JS and the whole Connect surface silently becomes
+`any` under `skipLibCheck`.
+
+Use `bundler` or `node16` resolution instead. Only reach for `paths` under
+`"moduleResolution": "node"` (node10), which cannot read an `exports` map at all.
 
 ### Operations
 
@@ -206,11 +232,11 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 
 `RPC_METHODS` has **14** members (the 9 above plus `sphere_disconnect` and the four DM reads:
 `sphere_getConversations`, `sphere_getMessages`, `sphere_getDMUnreadCount`, `sphere_markAsRead`).
-`PERMISSION_SCOPES` has **13**. The invoice surface (`sphere_getInvoices`,
+`PERMISSION_SCOPES` has **15**. The invoice surface (`sphere_getInvoices`,
 `sphere_getInvoiceStatus`, the nine invoice intents, `invoice:read` / `invoice:write`) was
 **deleted in sphere-sdk 0.14** — it never shipped enabled in any wallet host.
 
-**Intents** (require user approval each time):
+**Intents** — **8** in `INTENT_ACTIONS` (require user approval each time):
 | Intent Action | Description | Required Permission |
 |--------------|-------------|---------------------|
 | `send` | L3 token transfer | `transfer:request` |
@@ -219,6 +245,17 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 | `payment_request` | Payment request | `payment:request` |
 | `receive` | Receive incoming tokens | `identity:read` |
 | `sign_message` | Message signing | `sign:request` |
+| `send_nft` | Move a coinless token (Connect 2.2) | `nft:transfer` |
+| `mint_nft` | Mint an NFT from dApp-chosen content (Connect 2.3) | `nft:mint` |
+
+⚠ **`send_nft` is declared but not implemented by the Sphere wallet — it answers `-32601`
+(`METHOD_NOT_FOUND`).** `mint_nft` is implemented. A protocol action is not a promise that the
+wallet on the other end serves it. `nft:mint` is a scope of its own because minting an NFT signs
+dApp-chosen content as the user; neither `mint:request` nor `nft:transfer` implies it.
+
+⚠ **The last two rows need a 0.17.x client.** The pin here is still **0.14.2**, whose
+`INTENT_ACTIONS` has the first six members only and whose `SPHERE_CONNECT_VERSION` is `2.1`.
+`send_nft` / `mint_nft` cannot be issued from this checkout until the pin moves.
 
 ### Connection Flow
 
@@ -232,23 +269,40 @@ The browser `tsconfig.json` requires explicit path mappings for connect submodul
 
 ### Browser Connection Modes
 
-**Popup mode** (default in this example):
+**Iframe mode (P1)** — the mode that matters for a long-lived session:
+- `PostMessageTransport.forClient()` targets `window.parent` automatically
+- Host creates transport via `PostMessageTransport.forHost(iframe, { allowedOrigins })`
+- This is what the hosted wallet's custom-agent tab uses
+
+**Popup mode (P3)** (default in this example when it is not framed):
 - Opens wallet at `WALLET_URL + '/connect?origin=...'`
 - Waits for `HOST_READY_TYPE` message before establishing transport
 - Popup close is treated as disconnection
+- Works against a wallet you run yourself. Against the hosted deployment it is untested end to
+  end: `https://sphere.unicity.network/connect` itself answers **200** (and so does
+  `?origin=https%3A%2F%2Fexample.com`), but CloudFront answers **403** to any query string
+  containing `localhost` / `127.0.0.1`, which is what a local dApp's `origin` would be — so the
+  usual dev-time popup attempt never reaches the wallet. Measured with `curl` on 2026-09-17.
 
-**Iframe mode:**
-- `PostMessageTransport.forClient()` targets `window.parent` automatically
-- Host creates transport via `PostMessageTransport.forHost(iframe, { allowedOrigins })`
+**Extension mode (P2) — DEAD.** The SDK still exports `ExtensionTransport`, and
+`useWalletConnect` still contains the branches, but the Sphere Chrome extension wallet is
+**discontinued**: nothing answers, `hasExtension()` is false, and `ConnectButton` already hides
+the option. No doc or example may present it as a production transport.
 
 ### Protocol Constants
 
 ```typescript
 SPHERE_CONNECT_NAMESPACE = 'sphere-connect'
-SPHERE_CONNECT_VERSION = '2.1'
+SPHERE_CONNECT_VERSION = '2.3'   // sphere-sdk 0.17.2. '2.1' in the 0.14.2 pinned here.
+                                 // The compatibility gate compares MAJOR only.
+DEFAULT_MIN_CLIENT_SDK_VERSION = '0.14.1-0'  // the npm floor a host enforces
 HOST_READY_TYPE = 'sphere-connect:host-ready'
 HOST_READY_TIMEOUT = 30_000  // ms
 ```
+
+Every dApp **must** pass `network` (`SPHERE_NETWORKS.mainnet` / `.testnet2`) to `ConnectClient` /
+`autoConnect`. Both networks are live, and `checkCompatibility()` treats a **missing** network as a
+mismatch: the handshake is refused with `INCOMPATIBLE_NETWORK` (**4008**).
 
 ### Error Codes
 
@@ -310,7 +364,7 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 - Manages `ConnectClient` lifecycle (create → connect → disconnect → cleanup) through one `handshake()` helper
 - Handles popup window open/close detection and a permanent `HOST_READY` re-handshake
 - Exposes state: `isConnected`, `isConnecting`, `isAutoConnecting`, `isWalletLocked`, `walletChanged`, `unlockEpoch`, `walletProtocol`, `identity`, `permissions`, `error`
-- Exposes: `connect()`, `connectViaExtension()`, `connectViaPopup()`, `disconnect()`, `query()`, `intent()`, `on()`
+- Exposes: `connect()`, `connectViaExtension()` (dead path — see Browser Connection Modes), `connectViaPopup()`, `disconnect()`, `query()`, `intent()`, `on()`
 - **A lock never disconnects** against a Connect ≥ 2.1 wallet: `wallet:locked` only sets `isWalletLocked`; a resume that lands on a locked wallet succeeds with `ConnectResult.locked === true`; `wallet:unlocked` compares the identity in the payload before resuming and re-subscribes to nothing (the host re-arms); `wallet:disconnected` is the only event that tears anything down. A 2.0 wallet (`walletProtocol`) still gets the old teardown — there, `wallet:locked` also revoked the session
 - Failures are classified by `.code` and `data.reason` (`src/lib/connectErrors.ts`), never by a message regex
 
@@ -343,9 +397,11 @@ Subscribable events (via `client.on()`), using the **sphere-sdk 0.14 names**:
 - `nametag:registered` / `nametag:recovered` — Nametag lifecycle
 - `address:activated` — New address tracked
 
-The **16** pre-0.14 names listed in the host's `COMPAT_ATTACHERS` (`connect/host/payments-compat.ts`)
-still fire — the host re-emits each from the new event through a compatibility adapter. The other
-**26** removed names do NOT, and they fail silently: `Sphere.on()` accepts any string, so the
+The pre-0.14 names listed in the host's `COMPAT_ATTACHERS` (`connect/host/payments-compat.ts`)
+still fire — the host re-emits each from the new event through a compatibility adapter. That map
+has **14** keys: 13 renamed names plus `payment_request:incoming`, which kept its name but changed
+payload shape, so it needs an adapter too. Every other removed name does NOT fire, and they fail
+silently: `Sphere.on()` accepts any string, so the
 subscribe succeeds and then never delivers. Whole families went that way — every `invoice:*` and
 every `swap:*`, plus `sync:started` / `:error` / `:provider`, `inventory:conflict`,
 `send:partial-remainder`, `transfer:invalid`, `walletapi:session`, `payment_request:accepted` /

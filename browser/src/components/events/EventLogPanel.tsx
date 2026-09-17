@@ -22,8 +22,9 @@ interface Props {
  *   realtime:status + storage:degraded                                -> connection:status
  *   payment_request:paid / :rejected / :expired                       -> payment_request:updated
  *
- * The 16 old names listed in the host's COMPAT_ATTACHERS still resolve — the wallet re-emits
- * them from the new event through a compatibility adapter. The other 26 pre-0.14 names do NOT:
+ * The 14 old names keyed in the host's COMPAT_ATTACHERS still resolve — the wallet re-emits them
+ * from the new event through a compatibility adapter (13 renamed, plus payment_request:incoming,
+ * which kept its name but changed payload shape). Every OTHER pre-0.14 name does NOT:
  * `subscribe` accepts any string, so a stale subscription to e.g. `invoice:payment`,
  * `swap:failed`, `sync:started`, `send:partial-remainder`, `transfer:invalid` or
  * `payment_request:response` is ACCEPTED and then silently never fires. Use the names below;
