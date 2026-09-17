@@ -1,17 +1,20 @@
 /**
  * The Connect 2.3 NFT intents, as this example demonstrates them.
  *
- * Two things are pinned here:
+ * Three things are pinned here:
  *   1. `mint_nft` round-trips through `nftContentToWire` / `nftContentFromWire`. The wire form is
  *      JSON, so inline media bytes are base64 and EVERY metadata field must be present — an
  *      absent optional field is `null`, not missing. A dApp that hand-rolls the JSON discovers
  *      that at runtime, in the wallet's refusal.
- *   2. `send_nft` is answered `-32601`. It is a declared Connect 2.2 action that the Sphere
+ *   2. The wire codec is not the whole gate. It checks shape and base64; the VALUE rules live in
+ *      `encodeNftContent`, and the mock runs both because a real wallet does. An `NftLink` with
+ *      an empty `sha256` is the case that separates them.
+ *   3. `send_nft` is answered `-32601`. It is a declared Connect 2.2 action that the Sphere
  *      wallet does not implement, and this repo's mock must not pretend otherwise: an example
  *      that succeeds where the real wallet refuses teaches a flow that cannot ship.
  */
 import { describe, it, expect } from 'vitest';
-import { ERROR_CODES, INTENT_ACTIONS, nftContentToWire } from '@unicitylabs/sphere-sdk/connect';
+import { ERROR_CODES, INTENT_ACTIONS, nftContentFromWire, nftContentToWire } from '@unicitylabs/sphere-sdk/connect';
 import type { MintNftIntentParams, MintNftIntentResult, NftContent } from '@unicitylabs/sphere-sdk/connect';
 import { answerIntent } from './mockIntents';
 
@@ -68,6 +71,49 @@ describe('mint_nft', () => {
   it('is refused when content is missing entirely', async () => {
     const answer = await answerIntent(INTENT_ACTIONS.MINT_NFT, {});
     expect(answer.error?.code).toBe(ERROR_CODES.INVALID_PARAMS);
+  });
+
+  // The gap between the two checks, and the reason the mock runs encodeNftContent as well.
+  // nftContentFromWire only asks that `sha256` be a string, so '' sails through it — and an
+  // NftLink without a digest is not pinned to anything, which is why the value rules refuse it.
+  // A mock that stopped at the wire codec would sign content the real wallet throws out.
+  it('refuses a link whose sha256 is empty, which the wire codec alone would accept', async () => {
+    const wire = nftContentToWire({
+      ...CONTENT,
+      image: { kind: 'link', media_type: 'image/png', uri: 'https://example.com/a.png', sha256: '' },
+    });
+    // Check 1 on its own is happy with it.
+    expect(() => nftContentFromWire(wire)).not.toThrow();
+
+    const answer = await answerIntent(INTENT_ACTIONS.MINT_NFT, { content: wire });
+
+    expect(answer.result).toBeUndefined();
+    expect(answer.error?.code).toBe(ERROR_CODES.INVALID_PARAMS);
+    expect(answer.error?.message).toContain('sha256');
+  });
+
+  it('accepts a link that carries a real 64-hex digest', async () => {
+    const wire = nftContentToWire({
+      ...CONTENT,
+      image: { kind: 'link', media_type: 'image/png', uri: 'https://example.com/a.png', sha256: 'ab'.repeat(32) },
+    });
+
+    const answer = await answerIntent(INTENT_ACTIONS.MINT_NFT, { content: wire });
+
+    expect(answer.error).toBeUndefined();
+    expect((answer.result as MintNftIntentResult).tokenId).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('refuses a link on a scheme the value rules do not allow', async () => {
+    const wire = nftContentToWire({
+      ...CONTENT,
+      image: { kind: 'link', media_type: 'image/png', uri: 'http://example.com/a.png', sha256: 'ab'.repeat(32) },
+    });
+
+    const answer = await answerIntent(INTENT_ACTIONS.MINT_NFT, { content: wire });
+
+    expect(answer.error?.code).toBe(ERROR_CODES.INVALID_PARAMS);
+    expect(answer.error?.message).toContain('uri');
   });
 });
 

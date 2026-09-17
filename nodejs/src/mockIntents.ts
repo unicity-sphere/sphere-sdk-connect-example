@@ -10,6 +10,7 @@
  * would teach a dApp to ship a flow that cannot work.
  */
 import { ERROR_CODES, INTENT_ACTIONS, nftContentFromWire } from '@unicitylabs/sphere-sdk/connect';
+import { encodeNftContent } from '@unicitylabs/sphere-sdk/token-engine';
 
 /** Exactly what `ConnectHostConfig.onIntent` must resolve with. */
 export interface IntentAnswer {
@@ -55,11 +56,22 @@ export async function answerIntent(
     case INTENT_ACTIONS.SIGN_MESSAGE:
       return { result: { signature: '3045022100abcdef...', message: params.message, publicKey: '02abc123...' } };
     case INTENT_ACTIONS.MINT_NFT: {
-      // A real wallet DECODES the wire content before it shows an approval screen: an
-      // undecodable payload must be refused, not signed blind. nftContentFromWire throws a
-      // SphereError naming the offending field, which becomes an INVALID_PARAMS refusal.
+      // A real wallet runs BOTH checks before it shows an approval screen, and so must this mock
+      // or it accepts content the wallet would refuse:
+      //
+      //   1. nftContentFromWire  — SHAPE and base64 only. Every field present, an absent optional
+      //      field null rather than missing, inline bytes canonical base64.
+      //   2. encodeNftContent    — the VALUE rules, in sphere-sdk token-engine/nft-payload.ts:
+      //      media types lowercase type/subtype, link URIs https:// ipfs:// ar:// within 2048
+      //      characters, inline media non-empty, and a link's sha256 the 64-hex digest of the
+      //      linked file. An EMPTY sha256 passes check 1 and dies here — which is the whole
+      //      point: the digest is what pins a hosted file to the token.
+      //
+      // Both throw a SphereError naming the offending field, which becomes INVALID_PARAMS.
+      // Signing dApp-chosen content without running them is exactly what `nft:mint` being its
+      // own scope exists to prevent.
       try {
-        nftContentFromWire((params as { content?: unknown }).content);
+        encodeNftContent(nftContentFromWire((params as { content?: unknown }).content));
       } catch (err) {
         return {
           error: {

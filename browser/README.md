@@ -104,6 +104,13 @@ transport). The **popup path (P3) does NOT work against the hosted wallet — it
 > `NftContent` and puts it on the wire through `nftContentToWire()`; Connect messages
 > are JSON, so inline media bytes become base64 and every metadata field must be
 > present (`null` for the absent ones).
+>
+> Its optional image is an `NftLink`, so it asks for the file's **SHA-256** and media type as
+> well as the URI, and refuses to submit without them. The wire codec checks shape and base64
+> only — `sha256: ''` passes it — while `encodeNftContent`, which a wallet runs before it signs,
+> requires the 64-hex digest of the linked file and an `https://`, `ipfs://` or `ar://` URI. A
+> demo that shipped an empty digest would build content the wallet must refuse. The panel can
+> fetch the file and compute the digest for you when the host allows the cross-origin read.
 
 > Amounts on `send` / `payment_request` are **base units** (an integer string —
 > convert a human amount with `parseTokenAmount(human, decimals)`); `coinId` is

@@ -92,9 +92,13 @@ SDK's `SphereInstance` declares `payments` alone. The host maps the Connect wire
 
 `src/mockIntents.ts` holds the intent answers, in their own module so the tests can reach them
 (importing `mock-wallet-server.ts` starts a WebSocket server as a side effect). They mirror the
-real wallet where it succeeds *and* where it refuses: `mint_nft` decodes the wire content with
-`nftContentFromWire()` before answering — an undecodable payload is refused with `INVALID_PARAMS`
-rather than signed blind — and `send_nft` is answered `-32601`.
+real wallet where it succeeds *and* where it refuses. `mint_nft` runs the **two** checks a wallet
+runs before it shows an approval screen: `nftContentFromWire()` for shape and base64, then
+`encodeNftContent()` for the value rules — media types, link schemes, and a link's `sha256` being
+the 64-hex digest of the linked file. The second one matters: `sha256: ''` passes the wire codec
+and dies in `encodeNftContent`, so a mock that stopped at the codec would accept content the real
+wallet must refuse. Either throw becomes an `INVALID_PARAMS` refusal naming the field, rather than
+a payload signed blind. `send_nft` is answered `-32601`.
 
 ## How the connection is made
 

@@ -44,7 +44,7 @@ sphere-sdk-connect-example/
 │   │       ├── intents/             # 7 intent panels (require wallet approval)
 │   │       │   ├── SendPanel.tsx         # send (recipient, amount, coin selector, memo)
 │   │       │   ├── MintPanel.tsx         # mint (coinId, amount)
-│   │       │   ├── MintNftPanel.tsx      # mint_nft (nftContentToWire; shows the tokenId)
+│   │       │   ├── MintNftPanel.tsx      # mint_nft (nftContentToWire; link needs a real sha256)
 │   │       │   ├── DMPanel.tsx           # dm (recipient, message)
 │   │       │   ├── PaymentRequestPanel.tsx # payment_request (recipient, amount, coin, message)
 │   │       │   ├── ReceivePanel.tsx      # receive (button only, no params)
@@ -359,6 +359,7 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 
 - Creates `ConnectHost` with a mock `SphereInstance` (`src/mockSphere.ts`, shared with the tests). The mock is shaped like a real wallet: `payments` is the payments-v2 facade (`assets()` / `tokens()` / paged `history()` / `requests`). There is **no** `paymentsV2` alias — `SphereInstance` declares `payments` alone and no host path reads the old name
 - Answers `mint_nft` with a `{ tokenId }` result and `send_nft` with `-32601`, mirroring what the real Sphere wallet does
+- Before answering `mint_nft` it runs **both** checks a wallet runs: `nftContentFromWire()` for shape and base64, then `encodeNftContent()` for the value rules (media types, link schemes, a link's 64-hex `sha256`). Either throw becomes an `INVALID_PARAMS` refusal naming the field. The wire codec alone is **not** the gate — an empty `sha256` passes it and dies in `encodeNftContent`, so a mock that stopped at the codec would accept content a real wallet must refuse
 - Auto-approves all connection requests with full permissions
 - Auto-approves all intents with action-specific success responses
 - Returns rich mock data: identity, assets (UCT + USDU with fiat/24h change), tokens (with statuses), history
