@@ -33,8 +33,16 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
   const [loading, setLoading] = useState(false);
   const [newChatRecipient, setNewChatRecipient] = useState('');
   const [error, setError] = useState<string | null>(null);
-  /** The LAST dm intent, when Connect could not tell us whether it was delivered. */
-  const [sendFailure, setSendFailure] = useState<IntentFailure | null>(null);
+  /**
+   * Unresolved dm intents, keyed by the thread each was sent to.
+   *
+   * Panel-scoped state would be wrong here. A 4201 for peer A must not lock the composer for
+   * peer B — B's message was never sent, so there is nothing to reconcile there — and a banner
+   * that says "reload the conversation" has to mean A's conversation, not whichever one happens
+   * to be open. The lock follows the thread: switching away releases the composer, switching
+   * back restores it, and only an acknowledgement on that thread clears it.
+   */
+  const [unresolvedSends, setUnresolvedSends] = useState<Record<string, IntentFailure>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   // Local cache: pubkey → nametag (persists within session even if wallet doesn't return it)
@@ -123,13 +131,25 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
     } catch {}
   };
 
-  // A dm whose outcome is unknown LOCKS the composer — the peer may already have the message,
-  // and the draft is still in the box, so one Enter would send it twice.
+  /** The thread the composer is aimed at: a selected peer's pubkey, or the typed new-chat handle. */
+  const activeThread = selectedPeer ?? (newChatRecipient.trim() ? `@${newChatRecipient.trim().replace(/^@/, '')}` : null);
+  const sendFailure = activeThread ? unresolvedSends[activeThread] ?? null : null;
+  // A dm whose outcome is unknown LOCKS the composer for THAT thread — the peer may already have
+  // the message, and the draft is still in the box, so one Enter would send it twice.
   const unresolved = isUnresolved(sendFailure);
+
+  const clearUnresolved = useCallback((thread: string) => {
+    setUnresolvedSends((prev) => {
+      if (!(thread in prev)) return prev;
+      const next = { ...prev };
+      delete next[thread];
+      return next;
+    });
+  }, []);
 
   // Send message
   const sendMessage = async () => {
-    if (!input.trim() || sending || unresolved) return;
+    if (!input.trim() || sending || unresolved || !activeThread) return;
     // Try: conversation data → local cache → raw pubkey
     const peerNametag = selectedPeer
       ? (conversations.find((c) => c.peerPubkey === selectedPeer)?.peerNametag ?? getNametag(selectedPeer))
@@ -141,9 +161,12 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
         : newChatRecipient.startsWith('@') ? newChatRecipient : '@' + newChatRecipient;
     if (!to) return;
 
+    // Captured, not read from state in the catch: the user may have switched threads while the
+    // intent was in flight, and the lock belongs to the thread the dm was sent to.
+    const thread = activeThread;
+
     setSending(true);
     setError(null);
-    setSendFailure(null);
     try {
       const result = await intent<{ sent: boolean; messageId?: string; timestamp?: number }>(
         INTENT_ACTIONS.DM,
@@ -164,9 +187,9 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
       }
     } catch (err) {
       // A 4201 is NOT rendered as a red "failed to send": the wallet took the dm and only the
-      // answer was lost. It gets the reconcile banner below and locks the composer instead.
+      // answer was lost. It gets the reconcile banner below and locks that thread's composer.
       const failure = toIntentFailure(err);
-      setSendFailure(failure);
+      if (isUnresolved(failure)) setUnresolvedSends((prev) => ({ ...prev, [thread]: failure }));
       setError(errorText(failure));
     } finally {
       setSending(false);
@@ -342,14 +365,16 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
             </div>
           )}
 
-          {/* Outcome unknown (4201) — the dm may already have been delivered */}
-          {unresolved && (
+          {/* Outcome unknown (4201) — the dm may already have been delivered. Scoped to this
+              thread: the banner names the conversation it belongs to, and it is the only one
+              whose composer is locked. */}
+          {unresolved && activeThread && (
             <div className="px-3">
               <OutcomeUnknownBanner
                 failure={sendFailure}
                 action="dm"
-                reconcile="Reload the conversation before pressing Send again, or the peer gets the message twice."
-                onAcknowledge={() => setSendFailure(null)}
+                reconcile={`Reload the conversation with ${peerDisplay ?? activeThread} before pressing Send again, or that peer gets the message twice.`}
+                onAcknowledge={() => clearUnresolved(activeThread)}
               />
             </div>
           )}
