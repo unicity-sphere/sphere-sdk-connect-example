@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { INTENT_ACTIONS } from '@unicitylabs/sphere-sdk/connect';
 import { Button, Input } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
+import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
+import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -36,22 +38,27 @@ export function MintPanel({ intent }: Props) {
   const [coinId, setCoinId] = useState('');
   const [amount, setAmount] = useState('');
   const [raw, setRaw] = useState<unknown>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<IntentFailure | null>(null);
   const [warmingUp, setWarmingUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // A mint whose outcome is unknown LOCKS this panel — the token may already exist.
+  const unresolved = isUnresolved(failure);
+
   const execute = async () => {
-    if (!coinId || !amount) return;
+    if (!coinId || !amount || unresolved) return;
     setLoading(true);
-    setError(null);
+    setFailure(null);
     setWarmingUp(false);
     setRaw(null);
     try {
       const result = await intent(INTENT_ACTIONS.MINT, { coinId, amount });
       setRaw(result);
     } catch (err) {
+      // The warm-up wait is the ONE codeless case worth special-casing; everything else goes
+      // through toIntentFailure, which keeps INTENT_OUTCOME_UNKNOWN (4201) apart from a refusal.
       if (isSubscriptionWarmup(err)) setWarmingUp(true);
-      else setError(err instanceof Error ? err.message : 'Failed');
+      else setFailure(toIntentFailure(err));
     } finally {
       setLoading(false);
     }
@@ -86,8 +93,8 @@ export function MintPanel({ intent }: Props) {
           className="font-mono" />
         <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
           placeholder="Amount (smallest units)" />
-        <Button onClick={execute} disabled={loading || !coinId || !amount} className="w-full">
-          {loading ? 'Minting...' : 'Mint'}
+        <Button onClick={execute} disabled={loading || unresolved || !coinId || !amount} className="w-full">
+          {loading ? 'Minting...' : unresolved ? 'Mint (locked — outcome unknown)' : 'Mint'}
         </Button>
       </div>
 
@@ -101,7 +108,14 @@ export function MintPanel({ intent }: Props) {
         </div>
       )}
 
-      <ResultDisplay result={raw} error={error} />
+      <OutcomeUnknownBanner
+        failure={failure}
+        action="mint"
+        reconcile="Re-read the wallet's token list before you mint again, or you may end up with two tokens where you wanted one."
+        onAcknowledge={() => setFailure(null)}
+      />
+
+      <ResultDisplay result={raw} error={errorText(failure)} />
     </div>
   );
 }

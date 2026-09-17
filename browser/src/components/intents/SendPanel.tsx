@@ -5,6 +5,8 @@ import { ResultDisplay } from '../ui/ResultDisplay';
 import { CoinSelect } from '../ui/CoinSelect';
 import { parseAmount, safeParseAmount } from '../../lib/format';
 import { interpretSendResult, SIMULATED_PENDING_RESULT, type SendOutcome } from '../../lib/sendResult';
+import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
+import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -19,14 +21,18 @@ export function SendPanel({ intent, query }: Props) {
   const [memo, setMemo] = useState('');
   const [raw, setRaw] = useState<unknown>(null);
   const [outcome, setOutcome] = useState<SendOutcome | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<IntentFailure | null>(null);
   const [loading, setLoading] = useState(false);
   const [simulatePending, setSimulatePending] = useState(false);
 
+  // A send whose outcome is unknown LOCKS this panel — see OutcomeUnknownBanner. Guarded inside
+  // execute() as well as on the button: a keyboard submit or a stale render must not slip past.
+  const unresolved = isUnresolved(failure);
+
   const execute = async () => {
-    if (!recipient || !amount || !coinId) return;
+    if (!recipient || !amount || !coinId || unresolved) return;
     setLoading(true);
-    setError(null);
+    setFailure(null);
     setRaw(null);
     setOutcome(null);
     try {
@@ -45,7 +51,9 @@ export function SendPanel({ intent, query }: Props) {
       setRaw(result);
       setOutcome(interpretSendResult(result));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      // NOT `setError(err.message)`. On INTENT_OUTCOME_UNKNOWN (4201) the wallet took the send
+      // and only the answer was lost, so re-enabling Send here would invite a double payment.
+      setFailure(toIntentFailure(err));
     } finally {
       setLoading(false);
     }
@@ -74,8 +82,12 @@ export function SendPanel({ intent, query }: Props) {
         )}
         <Input type="text" value={memo} onChange={(e) => setMemo(e.target.value)}
           placeholder="Memo (optional)" />
-        <Button onClick={execute} disabled={loading || !recipient || !amount || !coinId} className="w-full">
-          {loading ? 'Sending...' : 'Send'}
+        <Button
+          onClick={execute}
+          disabled={loading || unresolved || !recipient || !amount || !coinId}
+          className="w-full"
+        >
+          {loading ? 'Sending...' : unresolved ? 'Send (locked — outcome unknown)' : 'Send'}
         </Button>
       </div>
 
@@ -95,7 +107,13 @@ export function SendPanel({ intent, query }: Props) {
       </label>
 
       <SendOutcomeBanner outcome={outcome} />
-      <ResultDisplay result={raw} error={error} />
+      <OutcomeUnknownBanner
+        failure={failure}
+        action="send"
+        reconcile="Check the recipient's balance, your own backend or the aggregator before you decide. A second send consumes a different source token and pays twice."
+        onAcknowledge={() => setFailure(null)}
+      />
+      <ResultDisplay result={raw} error={errorText(failure)} />
     </div>
   );
 }
