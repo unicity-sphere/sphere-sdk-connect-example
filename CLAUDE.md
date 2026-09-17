@@ -93,13 +93,25 @@ npm run dev        # Vite dev server on http://localhost:5174
 
 Requires a wallet app running at `http://localhost:5173` (the Sphere wallet).
 
-To drive the **hosted** wallet instead, load the dApp as a custom agent:
-`https://sphere.unicity.network/agents/custom?url=<dapp-url>`. The popup path returns `403` there,
-and **the `url` must be `https`** — the wallet's custom-agent tab frames the URL only when its
-protocol is `https:` (a protocol-only check, so `https://localhost:5174` passes). Plain
-`http://localhost:5174` is silently replaced by the wallet's own prompt. The Vite dev server here
-is plain http on 5174 (`browser/vite.config.ts` sets only `server.port`), so serve it over https
-with a locally trusted certificate or front it with a tunnel. See `browser/README.md`.
+To drive the **hosted** wallet instead, put the dApp behind a **public https origin** (an https
+tunnel over the plain-http Vite server) and load that origin as a custom agent:
+`https://sphere.unicity.network/agents/custom?url=<public-https-url>`. Two independent gates:
+
+1. **CloudFront rejects local URLs in the query string.** Measured with `curl` on 2026-09-17:
+   `/connect` → **200**, `/connect?origin=https%3A%2F%2Fexample.com` → **200**,
+   `/agents/custom?url=https%3A%2F%2Ffoo.ngrok.app` → **200**, but **any** query string
+   containing `localhost` or `127.0.0.1` → **403** on every route tested, with or without
+   browser-like headers. It is a CDN/WAF rule about local URLs in the query — **not** the wallet
+   refusing the popup route, and **not** specific to `/connect`. Never write "the popup path
+   returns 403" again.
+2. **The wallet frames a custom tab only when the `url` is `https`** — `isHttpsUrl` in the
+   wallet's `src/components/desktop/DesktopLayout.tsx`, a protocol-only check. A plain-http URL
+   is silently replaced by the wallet's own prompt.
+
+`mkcert` + `vite --https` clears gate 2 but not gate 1, so `https://localhost:5174` is still
+useless in that query string. The wallet's in-app *Load Custom URL* prompt carries no query
+string and should only face gate 2, but that path is **untested**. Popup and `localhost` remain
+fine against a Sphere wallet you run yourself on 5173. See `browser/README.md`.
 
 ### Node.js CLI
 
@@ -141,7 +153,7 @@ cd backend-auth/backend  && npm install && cp .env.example .env && npm start
 cd backend-auth/frontend && npm install && cp .env.example .env && npm run dev
 ```
 
-Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubkeyFromSignature` and issues a JWT keyed on `chainPubkey`. To test against the **real hosted wallet**, load the dApp via the iframe custom-agent at `https://sphere.unicity.network/agents/custom?url=<dapp-url>` — the popup path returns `403`, and the `url` **must be `https`** (see the Browser dApp note above).
+Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubkeyFromSignature` and issues a JWT keyed on `chainPubkey`. To test against the **real hosted wallet**, put the frontend behind a public https origin (a tunnel) and load it via the iframe custom-agent at `https://sphere.unicity.network/agents/custom?url=<public-https-url>` — a `localhost`/`127.0.0.1` URL in that query string is 403ed by CloudFront before the wallet sees it, and the `url` must be `https` for the wallet to frame it (see the Browser dApp note above).
 
 ## Dependencies
 
@@ -241,6 +253,10 @@ Use `bundler` or `node16` resolution instead. Only reach for `paths` under
 wallet on the other end serves it. `nft:mint` is a scope of its own because minting an NFT signs
 dApp-chosen content as the user; neither `mint:request` nor `nft:transfer` implies it.
 
+⚠ **The last two rows need a 0.17.x client.** The pin here is still **0.14.2**, whose
+`INTENT_ACTIONS` has the first six members only and whose `SPHERE_CONNECT_VERSION` is `2.1`.
+`send_nft` / `mint_nft` cannot be issued from this checkout until the pin moves.
+
 ### Connection Flow
 
 1. **dApp** opens wallet popup/iframe or WebSocket connection
@@ -262,7 +278,11 @@ dApp-chosen content as the user; neither `mint:request` nor `nft:transfer` impli
 - Opens wallet at `WALLET_URL + '/connect?origin=...'`
 - Waits for `HOST_READY_TYPE` message before establishing transport
 - Popup close is treated as disconnection
-- Returns `403` against the **hosted** wallet — popup only works against a wallet you run yourself
+- Works against a wallet you run yourself. Against the hosted deployment it is untested end to
+  end: `https://sphere.unicity.network/connect` itself answers **200** (and so does
+  `?origin=https%3A%2F%2Fexample.com`), but CloudFront answers **403** to any query string
+  containing `localhost` / `127.0.0.1`, which is what a local dApp's `origin` would be — so the
+  usual dev-time popup attempt never reaches the wallet. Measured with `curl` on 2026-09-17.
 
 **Extension mode (P2) — DEAD.** The SDK still exports `ExtensionTransport`, and
 `useWalletConnect` still contains the branches, but the Sphere Chrome extension wallet is

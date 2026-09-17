@@ -251,6 +251,11 @@ await wallet.intent('send_nft', { to: '@alice', tokenId: '<token id>' });
 >   own scope — neither `mint:request` nor `nft:transfer` implies it.
 > - **The Sphere wallet implements `mint_nft` and answers `send_nft` with `-32601`.** A protocol
 >   action is not a promise that the wallet on the other end serves it; handle `-32601`.
+> - ⚠ **Both NFT snippets need a 0.17.x client.** This repo still pins
+>   `@unicitylabs/sphere-sdk` **0.14.2**, whose `INTENT_ACTIONS` has six members and whose
+>   `SPHERE_CONNECT_VERSION` is `2.1`. `mint_nft` / `send_nft` are not in that pin's action
+>   union, so the two lines above are a preview of the 0.17.x surface, not code you can run
+>   against this checkout.
 > - **Removed in sphere-sdk 0.14:** the invoice / accounting surface —
 >   `sphere_getInvoices`, `sphere_getInvoiceStatus`, the nine invoice intents and the
 >   `invoice:read` / `invoice:write` scopes. They were never enabled in any wallet host.
@@ -582,7 +587,11 @@ Outside the wallet's iframe, the dApp opens a Sphere popup window. **The popup m
 ```typescript
 const SESSION_KEY = 'sphere-connect-popup-session';
 
-// Include saved session in silent-check flag (prevents Connect button flash)
+// Include saved session in silent-check flag (prevents Connect button flash).
+// The example's own line (src/hooks/useWalletConnect.ts) also ORs `hasExtension()`:
+//   const willSilentCheck = isInIframe() || hasExtension() || !!sessionStorage.getItem(SESSION_KEY_POPUP);
+// That term is part of the dead P2 branch and is always false in a normal browser, so it is
+// left out here. Do not add it to new code.
 const willSilentCheck = isInIframe() || !!sessionStorage.getItem(SESSION_KEY);
 
 // After successful connect — save session
@@ -699,3 +708,30 @@ VITE_WALLET_URL=http://localhost:5173             # local development (Sphere wa
 ```
 
 The example dev server runs on port **5174** (see `vite.config.ts`); the Sphere wallet runs on port **5173**. The Vite config only sets `server: { port: 5174 }` — it does not enable HTTPS or load any certificates, so the dev server is served over plain `http`.
+
+### Testing a local dApp against the **hosted** wallet
+
+Two independent gates stand between a local dev server and
+`https://sphere.unicity.network`, and the usual `?url=https://localhost:5174` trick fails the
+first one:
+
+1. **CloudFront rejects local URLs in the query string.** Measured with `curl` on 2026-09-17
+   (HTTP status codes only — this was not driven through a browser):
+   `GET /connect` → **200**; `GET /connect?origin=https%3A%2F%2Fexample.com` → **200**;
+   `GET /agents/custom?url=https%3A%2F%2Ffoo.ngrok.app` → **200**; but **any** query string
+   containing `localhost` or `127.0.0.1` → **403**, served by CloudFront, on every route tested,
+   with and without browser-like `User-Agent` / `Accept` headers. It is a CDN/WAF rule about
+   local URLs in the query, not the wallet refusing a route, and not specific to `/connect`.
+2. **The wallet frames a custom tab only over `https`** — `isHttpsUrl` in the wallet's
+   `src/components/desktop/DesktopLayout.tsx` is a protocol-only check.
+
+So: front the dev server with an **https tunnel** (`cloudflared tunnel --url
+http://localhost:5174`, `ngrok http 5174`) and open
+`https://sphere.unicity.network/agents/custom?url=<your-public-https-url>`. A locally trusted
+certificate (`mkcert` + `vite --https`) clears gate 2 only.
+
+The wallet's in-app **Load Custom URL** prompt carries no query string, so gate 1 should not
+apply to it — but that path was **not tested end to end**; treat it as untested.
+
+Against a **wallet you run yourself** on `http://localhost:5173`, none of this applies: popup
+(P3) and `localhost` work normally.
