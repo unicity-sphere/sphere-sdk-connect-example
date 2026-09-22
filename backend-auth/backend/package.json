@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@unicitylabs/sphere-sdk": "0.17.2",
+    "@unicitylabs/sphere-sdk": "0.17.6",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",

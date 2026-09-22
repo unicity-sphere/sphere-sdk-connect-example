@@ -23,7 +23,7 @@ This guide explains how to integrate a browser dApp with the Sphere wallet using
 >
 > The fix is a dependency bump and a rebuild — there is no protocol change to make. The gate
 > compares the protocol **MAJOR** only, and Connect has stayed on MAJOR **2** throughout
-> (`SPHERE_CONNECT_VERSION` is **2.3** in sphere-sdk 0.17.2, which this example pins).
+> (`SPHERE_CONNECT_VERSION` is **2.3** in sphere-sdk 0.17.6, which this example pins).
 > Read `data.requiredSdk` / `data.actualSdk` and put them in your error copy;
 > `describeConnectFailure()` in `src/lib/connectErrors.ts` does exactly that, so the user is told
 > *which* version is needed instead of a bare "incompatible".
@@ -243,7 +243,7 @@ const { tokenId } = await wallet.intent('mint_nft', { /* MintNftIntentParams */ 
 await wallet.intent('send_nft', { to: '@alice', tokenId: '<token id>' });
 ```
 
-> **The Connect surface today (sphere-sdk 0.17.2, protocol `SPHERE_CONNECT_VERSION` = 2.3):**
+> **The Connect surface today (sphere-sdk 0.17.6, protocol `SPHERE_CONNECT_VERSION` = 2.3):**
 > **14** RPC methods, **8** intents and **15** permission scopes.
 >
 > - `send_nft` arrived in Connect **2.2** with the `nft:transfer` scope; `mint_nft` in **2.3**
@@ -407,7 +407,7 @@ if (result.locked === true) showLockedBanner();   // client.walletLocked is true
 
 ### Talking to an older wallet
 
-`SPHERE_CONNECT_VERSION` is `2.3` in sphere-sdk 0.17.2, which this example pins.
+`SPHERE_CONNECT_VERSION` is `2.3` in sphere-sdk 0.17.6, which this example pins.
 The compatibility gate compares MAJOR only, so a `2.0` wallet connects fine — but `wallet:locked`
 means the **opposite** there: the old
 (now removed) `notifyWalletLocked()` pushed it *and* revoked the session, and `wallet:unlocked`

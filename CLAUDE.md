@@ -1,6 +1,6 @@
 # CLAUDE.md - Sphere SDK Connect Example
 
-> **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.17.2** exactly. Wallet hosts
+> **SDK floor:** every package pins `@unicitylabs/sphere-sdk` **0.17.6** exactly. Wallet hosts
 > from 0.14.1 enforce an SDK version floor at the Connect handshake (`ConnectHost`'s built-in
 > default is `0.14.1-0`, overridable via `ConnectHostConfig.minSdkVersion`): a client on an older
 > SDK is refused with `UNSUPPORTED_PROTOCOL_VERSION` (4007) carrying `data.requiredSdk` /
@@ -165,7 +165,7 @@ Frontend brokers a `sign_message`; backend recovers the pubkey via `recoverPubke
 
 All five packages pin the same published SDK version, exactly (no caret):
 ```json
-"@unicitylabs/sphere-sdk": "0.17.2"
+"@unicitylabs/sphere-sdk": "0.17.6"
 ```
 
 - **Browser / backend-auth frontend:** React 19, Vite 7
@@ -295,7 +295,7 @@ the option. No doc or example may present it as a production transport.
 
 ```typescript
 SPHERE_CONNECT_NAMESPACE = 'sphere-connect'
-SPHERE_CONNECT_VERSION = '2.3'   // sphere-sdk 0.17.2, the pin here.
+SPHERE_CONNECT_VERSION = '2.3'   // sphere-sdk 0.17.6, the pin here.
                                  // The compatibility gate compares MAJOR only.
 DEFAULT_MIN_CLIENT_SDK_VERSION = '0.14.1-0'  // the npm floor a host enforces
 HOST_READY_TYPE = 'sphere-connect:host-ready'
