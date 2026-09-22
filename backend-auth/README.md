@@ -83,14 +83,31 @@ Open `http://localhost:5173`, click **Sign in with your Sphere wallet**,
 approve the connection and the signature request in your wallet. On success
 the page shows the recovered `chainPubkey` and a truncated session JWT.
 
-> **Testing against the real (hosted) wallet — use the iframe, not a popup.**
-> The frontend uses `autoConnect`, which falls back to a **popup** when it's not
-> running inside a wallet — and the popup path **does NOT work against the hosted
-> wallet (`https://sphere.unicity.network`): it returns `403`.** To test a
-> *local* frontend against the **live** wallet, load it as a **custom agent** at
-> **https://sphere.unicity.network/agents/custom** so the wallet embeds it in an
-> **iframe** (the P1 transport). Popup/localhost only works for a wallet you run
-> yourself.
+> **Testing against the real (hosted) wallet — use the iframe, behind a public https origin.**
+> The frontend uses `autoConnect`, which falls back to a **popup** when it is not running inside
+> a wallet. To test a *local* frontend against the **live** wallet instead, put it behind an
+> https tunnel (`cloudflared tunnel --url http://localhost:5173`, `ngrok http 5173`) and load
+> that public URL as a **custom agent** at
+> **`https://sphere.unicity.network/agents/custom?url=<your-public-https-url>`**, so the wallet
+> embeds it in an **iframe** (the P1 transport).
+>
+> ⚠ **A `localhost` / `127.0.0.1` URL in that query string is refused before the wallet sees
+> it.** Measured with `curl` on 2026-09-17: `/agents/custom?url=https%3A%2F%2Ffoo.ngrok.app`
+> answers **200**, `/connect` and `/connect?origin=https%3A%2F%2Fexample.com` answer **200**, but
+> **any** query string containing `localhost` or `127.0.0.1` answers **403** from CloudFront on
+> every route tested, headers or no headers. That is a CDN/WAF rule about local URLs in the
+> query — not the hosted wallet refusing the popup route.
+>
+> ⚠ **Independently, that `url` must be `https`:** the wallet frames a custom tab only when the
+> URL's protocol is `https:` (a protocol-only check), so a plain-http URL would be silently
+> replaced by the wallet's own prompt even if it got through. A public https tunnel clears both
+> gates; `https://localhost:5173` from `mkcert` clears only the second.
+>
+> Popup **and** `localhost` remain fine against a wallet **you run yourself**. Full detail in
+> [`../browser/README.md`](../browser/README.md#testing-against-the-hosted-wallet).
+>
+> `autoConnect` also has an extension path, but the Sphere Chrome extension wallet is
+> **discontinued** — nothing answers there.
 
 ## The byte-exact-challenge gotcha
 

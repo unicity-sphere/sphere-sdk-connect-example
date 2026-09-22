@@ -19,8 +19,10 @@ dApp (ConnectClient)  ←→  Transport  ←→  Wallet (ConnectHost)
 > from 0.14.1 onward enforce an **SDK version floor at the handshake**: a client
 > built on an older SDK is refused with `UNSUPPORTED_PROTOCOL_VERSION` (4007)
 > before any approval UI appears, so a dApp that is not bumped simply stops
-> connecting. The Connect protocol itself is unchanged (still **2.1**) — this is
-> a dependency bump and a rebuild, nothing more. See
+> connecting. The Connect protocol **MAJOR** is unchanged (still **2**), which is
+> all the gate compares — this is a dependency bump and a rebuild, nothing more.
+> (`SPHERE_CONNECT_VERSION` is **2.3** in sphere-sdk 0.17.2 and **2.1** in the
+> 0.14.2 pinned below.) See
 > [browser/CONNECT.md](browser/CONNECT.md#-your-dapp-needs-unicitylabssphere-sdk--0141).
 
 Not every example uses Connect: the **bot** runs its own wallet directly, and
@@ -53,13 +55,26 @@ cd browser
 npm install
 npm run dev        # http://localhost:5174
 ```
-Needs a Sphere wallet reachable at `http://localhost:5173` (or the Sphere extension). See [browser/README.md](browser/README.md).
+Needs a Sphere wallet reachable at `http://localhost:5173`. See [browser/README.md](browser/README.md).
 
-> **Testing a local dApp against the real (hosted) wallet?** It only works via
-> **iframe** — load your dApp as a custom agent at
-> **https://sphere.unicity.network/agents/custom**. The **popup path returns
-> `403`** against the hosted wallet. (Applies to both `browser/` and
-> `backend-auth/frontend`.)
+> **Testing a local dApp against the real (hosted) wallet?** Serve the dApp over **https on a
+> publicly reachable host** — an https tunnel (`cloudflared tunnel --url http://localhost:5174`,
+> `ngrok http 5174`) is the quick way — and load that URL as a custom agent at
+> **`https://sphere.unicity.network/agents/custom?url=<your-public-https-url>`**. (Applies to
+> both `browser/` and `backend-auth/frontend`.)
+>
+> ⚠ **A `localhost` / `127.0.0.1` URL in that query string never reaches the wallet.** Measured
+> with `curl` on 2026-09-17: `/agents/custom?url=https%3A%2F%2Ffoo.ngrok.app` answers **200**, and
+> so do `/connect` and `/connect?origin=https%3A%2F%2Fexample.com` — but **any** query string
+> containing `localhost` or `127.0.0.1` answers **403** from CloudFront, on every route tested,
+> with or without browser-like headers. It is a CDN/WAF rule about local URLs in the query, not
+> the wallet refusing the popup route.
+>
+> ⚠ **Independently, the `url` must be `https`.** The wallet frames a custom tab only when the
+> URL's protocol is `https:`, so a plain-http URL would not be framed even if it got through.
+>
+> Popup **and** `localhost` stay fine against a Sphere wallet **you run yourself** on
+> `localhost:5173`. See [browser/README.md](browser/README.md#testing-against-the-hosted-wallet).
 
 ### `nodejs/` — Node dApp over WebSocket
 
@@ -105,7 +120,7 @@ are examples, and pin clarity matters more than float):
 ## Documentation
 
 - [browser/CONNECT.md](browser/CONNECT.md) — full browser dApp integration guide
-- [sphere-sdk/docs/CONNECT.md](../sphere-sdk/docs/CONNECT.md) — protocol reference
+- [sphere-sdk `docs/CONNECT.md`](https://github.com/unicity-sphere/sphere-sdk/blob/main/docs/CONNECT.md) — protocol reference
 
 ## License
 

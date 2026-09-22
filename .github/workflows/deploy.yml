@@ -26,11 +26,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: browser/package-lock.json
 
-      - run: npm install
+      # npm ci, not npm install — same reason as CI: the lockfile is what pins
+      # @unicitylabs/sphere-sdk, and `npm install` would silently re-resolve it, so the
+      # deployed bundle could be built against a different SDK than CI tested.
+      - run: npm ci
 
       # Two builds into one Pages artifact (one repo = one Pages site).
       # Same code, different wallet target baked in via VITE_WALLET_URL:

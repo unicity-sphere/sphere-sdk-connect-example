@@ -23,9 +23,9 @@ describe('EventLogPanel event list', () => {
   });
 
   // The demo is teaching material: it must subscribe to the names a current wallet
-  // actually emits. A stale list fails silently either way — the 16 names the host's
-  // COMPAT_ATTACHERS covers keep arriving through the adapter, and the other 26 are
-  // accepted by `subscribe` and then never fire. Neither breaks anything here; the
+  // actually emits. A stale list fails silently either way — the 14 names the host's
+  // COMPAT_ATTACHERS keys keep arriving through the adapter, and every other pre-0.14
+  // name is accepted by `subscribe` and then never fires. Neither breaks anything here; the
   // panel would just quietly teach the wrong API. Pin both directions.
   it('uses the sphere-sdk 0.14 payments event names', () => {
     for (const event of [
@@ -70,7 +70,7 @@ describe('EventLogPanel event list', () => {
     }
   });
 
-  // The 26 pre-0.14 names with no COMPAT_ATTACHERS entry are the dangerous ones: a
+  // The pre-0.14 names with no COMPAT_ATTACHERS entry are the dangerous ones: a
   // subscription is ACCEPTED and then silently never fires, so listing one here would
   // look like a working demo of an event that can no longer arrive. Whole families went
   // this way — every `invoice:*` and every `swap:*`.
