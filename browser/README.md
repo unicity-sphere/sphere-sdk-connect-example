@@ -135,6 +135,12 @@ The wallet embeds your dApp in an **iframe** and acts as the Connect host (the P
 > demo that shipped an empty digest would build content the wallet must refuse. The panel can
 > fetch the file and compute the digest for you when the host allows the cross-origin read.
 
+> `INTENT_ACTIONS` has **8** members **in sphere-sdk 0.17.2**: the six above plus `send_nft`
+> (Connect 2.2, scope `nft:transfer`) and `mint_nft` (Connect 2.3, scope `nft:mint`), which this
+> example does not demonstrate yet. **The Sphere wallet implements `mint_nft` and answers
+> `send_nft` with `-32601`.** ⚠ **Both need a 0.17.x client** — this package still pins
+> **0.14.2**, where `INTENT_ACTIONS` is the six above and `SPHERE_CONNECT_VERSION` is `2.1`.
+
 > Amounts on `send` / `payment_request` are **base units** (an integer string —
 > convert a human amount with `parseTokenAmount(human, decimals)`); `coinId` is
 > the lowercase 64-hex id. A `send` can resolve as a success with

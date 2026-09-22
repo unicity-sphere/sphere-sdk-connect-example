@@ -4,6 +4,8 @@ import { Button, Input } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { CoinSelect } from '../ui/CoinSelect';
 import { parseAmount, safeParseAmount } from '../../lib/format';
+import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
+import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -17,13 +19,16 @@ export function PaymentRequestPanel({ intent, query }: Props) {
   const [decimals, setDecimals] = useState(0);
   const [message, setMessage] = useState('');
   const [raw, setRaw] = useState<unknown>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<IntentFailure | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // A request whose outcome is unknown LOCKS this panel — it may already be on its way.
+  const unresolved = isUnresolved(failure);
+
   const execute = async () => {
-    if (!recipient || !amount || !coinId) return;
+    if (!recipient || !amount || !coinId || unresolved) return;
     setLoading(true);
-    setError(null);
+    setFailure(null);
     setRaw(null);
     try {
       const to = recipient.startsWith('@') ? recipient : '@' + recipient;
@@ -34,7 +39,8 @@ export function PaymentRequestPanel({ intent, query }: Props) {
       const result = await intent(INTENT_ACTIONS.PAYMENT_REQUEST, params);
       setRaw(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
+      // INTENT_OUTCOME_UNKNOWN (4201) is not a refusal — see src/lib/intentFailure.ts.
+      setFailure(toIntentFailure(err));
     } finally {
       setLoading(false);
     }
@@ -63,12 +69,27 @@ export function PaymentRequestPanel({ intent, query }: Props) {
         )}
         <Input type="text" value={message} onChange={(e) => setMessage(e.target.value)}
           placeholder="Message (optional)" />
-        <Button onClick={execute} disabled={loading || !recipient || !amount || !coinId} className="w-full">
-          {loading ? 'Sending...' : 'Send Payment Request'}
+        <Button
+          onClick={execute}
+          disabled={loading || unresolved || !recipient || !amount || !coinId}
+          className="w-full"
+        >
+          {loading
+            ? 'Sending...'
+            : unresolved
+              ? 'Send Payment Request (locked — outcome unknown)'
+              : 'Send Payment Request'}
         </Button>
       </div>
 
-      <ResultDisplay result={raw} error={error} />
+      <OutcomeUnknownBanner
+        failure={failure}
+        action="payment_request"
+        reconcile="Ask the recipient, or read the wallet's request list, before sending a second one."
+        onAcknowledge={() => setFailure(null)}
+      />
+
+      <ResultDisplay result={raw} error={errorText(failure)} />
     </div>
   );
 }
