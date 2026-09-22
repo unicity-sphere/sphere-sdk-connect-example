@@ -4,9 +4,10 @@
  * Lives in its own module so a test can construct a ConnectHost around it without importing
  * mock-wallet-server.ts, which starts a WebSocket server as a side effect of being imported.
  *
- * It mirrors the shape a REAL sphere-sdk 0.14 wallet hands to `ConnectHost`: `payments` is the
- * payments-v2 facade (`assets()` / `tokens()` / `history()` / `requests`), and `paymentsV2` is
- * the same object — the deprecated alias the host reads to decide it is talking to a v2 wallet.
+ * It mirrors the shape a REAL wallet hands to `ConnectHost`: `payments` is the payments-v2 facade
+ * (`assets()` / `tokens()` / `history()` / `requests`). There is no `paymentsV2` alias any more —
+ * `SphereInstance` declares `payments` alone and nothing in the host reads the old name, so
+ * keeping it would only teach a field that no longer exists.
  *
  * Money MOVEMENT never reaches the facade in a Connect wallet — it arrives as an intent and is
  * answered by `onIntent`. Facade READS are a different matter: besides the four wire mappings
@@ -87,12 +88,12 @@ const payments = {
     cursor: null,
   }),
   // NOT optional, despite money never reaching the facade in a Connect wallet: the host's
-  // payment_request compat adapter calls `sphere.paymentsV2?.requests.list()` to rebuild the
+  // payment_request compat adapter calls `sphere.payments.requests.list()` to rebuild the
   // legacy `IncomingPaymentRequest` payload whenever a `payment_request:updated` arrives.
-  // The optional chain stops at `paymentsV2`, so a missing `requests` is not a graceful
-  // degradation — it is `TypeError: Cannot read properties of undefined (reading 'list')`
-  // thrown inside ConnectHost. Processed requests stay listed until dismissProcessed(),
-  // which is why the adapter can still find a just-paid one here.
+  // The host's try/catch guards only the `payments` GETTER, not `requests`, so a missing
+  // `requests` is not a graceful degradation — it is `TypeError: Cannot read properties of
+  // undefined (reading 'list')` thrown inside ConnectHost. Processed requests stay listed
+  // until dismissProcessed(), which is why the adapter can still find a just-paid one here.
   requests: {
     list: () => [
       {
@@ -120,9 +121,6 @@ export const mockSphere = {
     nametag: 'alice',
   },
   payments,
-  // The deprecated alias a 0.14 Sphere still exposes. ConnectHost reads it to detect a v2
-  // wallet and route sphere_getBalance/-Assets/-Tokens/-History through the facade above.
-  paymentsV2: payments,
   resolve: async (identifier: string) => ({
     nametag: identifier.replace('@', ''),
     chainPubkey: '03fedcba09876543210fedcba09876543210fedcba09876543210fedcba0987654321',

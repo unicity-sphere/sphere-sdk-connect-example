@@ -345,10 +345,14 @@ describe('locked gate over a real ConnectHost', () => {
       .resolves.toEqual({ subscribed: true, event: WALLET_EVENTS.UNLOCKED });
   });
 
-  it('reports protocol 2.1 and ships no client-side retry surface in Release 1', async () => {
+  // Asserted against the CONSTANT, never against a literal. The MINOR moves with every additive
+  // protocol release (2.1 -> 2.2 send_nft -> 2.3 mint_nft) and pinning it here only means this
+  // test fails on each SDK bump for no reason. What is load-bearing is the MAJOR: the
+  // compatibility gate compares MAJOR alone, so a MAJOR change is the one that breaks dApps.
+  it('speaks the SDK protocol version, on Connect MAJOR 2, with no client-side retry surface', async () => {
     const { client } = await connectPair();
-    expect(SPHERE_CONNECT_VERSION).toBe('2.1');
-    expect(client.walletProtocol).toBe('2.1');
+    expect(client.walletProtocol).toBe(SPHERE_CONNECT_VERSION);
+    expect(SPHERE_CONNECT_VERSION.split('.')[0]).toBe('2');
     // Release 1 is fail-fast: no queue, no client-only 4010, and no re-subscribe API.
     expect((ERROR_CODES as Record<string, number>).REQUEST_TIMEOUT).toBeUndefined();
     expect((client as unknown as { resubscribeAll?: unknown }).resubscribeAll).toBeUndefined();
