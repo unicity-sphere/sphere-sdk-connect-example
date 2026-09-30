@@ -58,6 +58,8 @@ export default function App() {
           isConnecting={wallet.isConnecting}
           extensionInstalled={wallet.extensionInstalled}
           error={wallet.error}
+          network={wallet.network}
+          onNetworkChange={wallet.selectNetwork}
         />
       </div>
     );
@@ -86,6 +88,7 @@ export default function App() {
   return (
     <PageShell
       identity={wallet.identity!}
+      network={wallet.sessionNetwork ?? wallet.network}
       onDisconnect={wallet.disconnect}
       isWalletLocked={wallet.isWalletLocked}
       section={section}

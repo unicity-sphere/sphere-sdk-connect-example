@@ -689,6 +689,38 @@ describe('useWalletConnect — the declared network', () => {
       expect(hook.result.current.network).toBe(mainnet);
     });
 
+    // The retry after an unlock is a handshake nobody clicked for, and no state flag marks it. The
+    // picker is open while it runs; a pick made then must not leave a live session that disagrees
+    // with the network this app declares — the session is what it declared, and the pick follows.
+    it('made during the retry after an unlock does not outlive the session it raced', async () => {
+      const hook = await mount();
+      FakeConnectClient.nextConnectError = new Error('Connection rejected by wallet');
+      await connectPopup(hook.result);
+      FakeConnectClient.nextConnectError = null;
+
+      let release!: () => void;
+      FakeConnectClient.connectGate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      act(() => {
+        window.dispatchEvent(new MessageEvent('message', { data: { type: HOST_READY_TYPE } }));
+      });
+      await waitFor(() => expect(FakeConnectClient.instances).toHaveLength(2)); // the retry, declared testnet2
+
+      act(() => {
+        hook.result.current.selectNetwork(mainnet);
+      });
+      expect(hook.result.current.network).toBe(mainnet); // nothing is connected, so the pick is taken
+
+      await act(async () => {
+        release();
+      });
+      await waitFor(() => expect(hook.result.current.isConnected).toBe(true));
+
+      expect(hook.result.current.sessionNetwork).toEqual({ id: 4 });
+      expect(hook.result.current.network).toBe(testnet2);
+    });
+
     // The failed client stays in a ref after a refusal. A lock keyed on "is there a client" would
     // trap the user on the network that was just refused, the one case the picker exists for.
     it('is accepted after a refusal, and the next attempt declares the new pick', async () => {
@@ -776,31 +808,29 @@ describe('useWalletConnect — the default from VITE_SPHERE_NETWORK', () => {
   });
 
   /**
-   * A fresh copy of the hook module. The env default is read ONCE, when the module loads,
-   * like VITE_WALLET_URL beside it, so each case needs its own load. The client double is
-   * reloaded with it: the mock factory builds a new module graph, and the FakeConnectClient
-   * imported at the top of this file would no longer be the one the hook talks to.
+   * A fresh copy of the hook module. The env default is read ONCE, when the module loads, like
+   * VITE_WALLET_URL beside it, so each case needs its own load. Only the hook is reloaded: a
+   * vi.mock factory's result outlives resetModules(), so the reloaded hook still talks to the
+   * FakeConnectClient imported at the top of this file.
    */
   async function freshHook(env: string) {
     vi.stubEnv('VITE_SPHERE_NETWORK', env);
     vi.resetModules();
     const { useWalletConnect: useFresh } = await import('./useWalletConnect');
-    const { FakeConnectClient: Fake } = await import('../test/fakeConnectClient');
-    Fake.reset();
     const hook = renderHook(() => useFresh());
     await waitFor(() => expect(hook.result.current.isAutoConnecting).toBe(false));
-    return { hook, Fake };
+    return hook;
   }
 
   it('is what the app declares when nothing was picked', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { hook, Fake } = await freshHook('mainnet');
-    Fake.walletNetworkId = TEST_REGISTRY.mainnet.id;
+    FakeConnectClient.walletNetworkId = TEST_REGISTRY.mainnet.id;
+    const hook = await freshHook('mainnet');
 
     expect(hook.result.current.network).toEqual(TEST_REGISTRY.mainnet);
     await connectPopup(hook.result);
 
-    expect(Fake.last.options.network).toEqual(TEST_REGISTRY.mainnet);
+    expect(FakeConnectClient.last.options.network).toEqual(TEST_REGISTRY.mainnet);
     expect(hook.result.current.isConnected).toBe(true);
     expect(warn).not.toHaveBeenCalled();
   });
@@ -808,19 +838,19 @@ describe('useWalletConnect — the default from VITE_SPHERE_NETWORK', () => {
   it('falls back to testnet2 with a warning when the value is not a registry network', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const { hook, Fake } = await freshHook('mainet');
+    const hook = await freshHook('mainet');
     await connectPopup(hook.result);
 
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('"mainet"'));
     expect(hook.result.current.network).toEqual(TEST_REGISTRY.testnet2);
-    expect(Fake.last.options.network).toEqual(TEST_REGISTRY.testnet2);
+    expect(FakeConnectClient.last.options.network).toEqual(TEST_REGISTRY.testnet2);
   });
 
   it('gives way to a network the user picked earlier', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     localStorage.setItem(NETWORK_KEY, 'testnet2');
 
-    const { hook } = await freshHook('mainnet');
+    const hook = await freshHook('mainnet');
 
     expect(hook.result.current.network).toEqual(TEST_REGISTRY.testnet2);
     expect(warn).not.toHaveBeenCalled();

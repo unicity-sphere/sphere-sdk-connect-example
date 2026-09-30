@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { TEST_REGISTRY } from '../test/networkRegistry';
 import {
   NETWORK_STORAGE_KEY,
   envNetwork,
@@ -30,7 +30,7 @@ describe('networkOptions', () => {
     expect(options.map((o) => o.key)).toEqual(['mainnet', 'testnet2', 'stagenet']);
     // Identity, not equality: what reaches ConnectClient is the SDK's own entry.
     for (const option of options) {
-      expect(option.network).toBe((SPHERE_NETWORKS as Record<string, unknown>)[option.key]);
+      expect(option.network).toBe((TEST_REGISTRY as Record<string, unknown>)[option.key]);
     }
   });
 
@@ -43,20 +43,20 @@ describe('envNetwork', () => {
   it('is testnet2 when the variable is unset or empty, without a warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    expect(envNetwork(undefined)).toBe(SPHERE_NETWORKS.testnet2);
-    expect(envNetwork('')).toBe(SPHERE_NETWORKS.testnet2);
+    expect(envNetwork(undefined)).toBe(TEST_REGISTRY.testnet2);
+    expect(envNetwork('')).toBe(TEST_REGISTRY.testnet2);
     expect(warn).not.toHaveBeenCalled();
   });
 
   it('resolves a registry key to the registry entry', () => {
-    expect(envNetwork('mainnet')).toBe(SPHERE_NETWORKS.mainnet);
-    expect(envNetwork('stagenet')).toBe(SPHERE_NETWORKS.stagenet);
+    expect(envNetwork('mainnet')).toBe(TEST_REGISTRY.mainnet);
+    expect(envNetwork('stagenet')).toBe(TEST_REGISTRY.stagenet);
   });
 
   it('falls back to testnet2 with a warning that names the value and the known networks', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    expect(envNetwork('mainet')).toBe(SPHERE_NETWORKS.testnet2);
+    expect(envNetwork('mainet')).toBe(TEST_REGISTRY.testnet2);
 
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0]?.[0]);
@@ -72,7 +72,7 @@ describe('envNetwork', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
-      expect(envNetwork(name)).toBe(SPHERE_NETWORKS.testnet2);
+      expect(envNetwork(name)).toBe(TEST_REGISTRY.testnet2);
     }
     expect(warn).toHaveBeenCalledTimes(4);
   });
@@ -84,10 +84,10 @@ describe('the stored choice', () => {
   });
 
   it('round-trips through localStorage, stored as the registry key', () => {
-    storeNetwork(SPHERE_NETWORKS.stagenet);
+    storeNetwork(TEST_REGISTRY.stagenet);
 
     expect(localStorage.getItem(NETWORK_STORAGE_KEY)).toBe('stagenet');
-    expect(readStoredNetwork()).toBe(SPHERE_NETWORKS.stagenet);
+    expect(readStoredNetwork()).toBe(TEST_REGISTRY.stagenet);
   });
 
   // localStorage is the user's to edit and another version of this app's to write. A value that
@@ -116,7 +116,7 @@ describe('the stored choice', () => {
     });
 
     expect(readStoredNetwork()).toBeNull();
-    expect(() => storeNetwork(SPHERE_NETWORKS.mainnet)).not.toThrow();
+    expect(() => storeNetwork(TEST_REGISTRY.mainnet)).not.toThrow();
   });
 });
 

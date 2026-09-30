@@ -24,12 +24,14 @@ sphere-sdk-connect-example/
 │   │   │   └── useWalletConnect.ts   # Core hook: popup/iframe connect logic
 │   │   ├── lib/
 │   │   │   ├── types.ts             # Local TS interfaces (Asset, Token, etc.)
-│   │   │   └── format.ts           # Amount formatting (decimals, fiat, truncate, relativeTime)
+│   │   │   ├── format.ts           # Amount formatting (decimals, fiat, truncate, relativeTime)
+│   │   │   └── networks.ts         # SPHERE_NETWORKS options, VITE_SPHERE_NETWORK default, stored pick
 │   │   └── components/
-│   │       ├── ConnectButton.tsx     # "Connect Wallet" button with loading state
+│   │       ├── ConnectButton.tsx     # "Connect Wallet" button with loading state + network selector
+│   │       ├── NetworkPicker.tsx     # Network selector (SPHERE_NETWORKS); locks with a stated reason
 │   │       ├── layout/
 │   │       │   ├── PageShell.tsx     # Sidebar + header + content area layout
-│   │       │   └── WalletHeader.tsx  # Compact header: nametag, address, disconnect
+│   │       │   └── WalletHeader.tsx  # Compact header: nametag, address, session network, disconnect
 │   │       ├── ui/
 │   │       │   ├── ResultDisplay.tsx # JSON result viewer with copy + raw toggle
 │   │       │   ├── CoinBadge.tsx    # Token icon (img or colored letter) + symbol
@@ -304,6 +306,8 @@ Every dApp **must** pass `network` (`SPHERE_NETWORKS.mainnet` / `.testnet2`) to 
 `autoConnect`. Both networks are live, and `checkCompatibility()` treats a **missing** network as a
 mismatch: the handshake is refused with `INCOMPATIBLE_NETWORK` (**4008**).
 
+The browser example does not hard-code one: the connect screen has a **Network** selector whose options are `SPHERE_NETWORKS` itself, defaulting to `VITE_SPHERE_NETWORK` (else `testnet2`, unknown value → warning + `testnet2`) and remembering the pick in `localStorage` (`sphere-connect-network`). `useWalletConnect` reads the pick once per handshake, so a session is bound to the network it declared: `selectNetwork()` is ignored while connected or connecting, the header shows `sessionNetwork` (the wallet's answer, `{ id }` only — name it with `formatNetwork()`, which fills the name from the registry), and switching means disconnecting first. ⚠ The registry depends on the installed SDK: 0.14.2 lists `testnet2` only, 0.16+ adds `mainnet`.
+
 ### Error Codes
 
 | Code | Name | Description |
@@ -363,8 +367,8 @@ Token metadata (symbol, name, decimals, iconUrl) comes from the wallet's TokenRe
 
 - Manages `ConnectClient` lifecycle (create → connect → disconnect → cleanup) through one `handshake()` helper
 - Handles popup window open/close detection and a permanent `HOST_READY` re-handshake
-- Exposes state: `isConnected`, `isConnecting`, `isAutoConnecting`, `isWalletLocked`, `walletChanged`, `unlockEpoch`, `walletProtocol`, `identity`, `permissions`, `error`
-- Exposes: `connect()`, `connectViaExtension()` (dead path — see Browser Connection Modes), `connectViaPopup()`, `disconnect()`, `query()`, `intent()`, `on()`
+- Exposes state: `isConnected`, `isConnecting`, `isAutoConnecting`, `isWalletLocked`, `walletChanged`, `unlockEpoch`, `walletProtocol`, `sessionNetwork`, `identity`, `permissions`, `error`
+- Exposes: `network`, `selectNetwork()`, `connect()`, `connectViaExtension()` (dead path — see Browser Connection Modes), `connectViaPopup()`, `disconnect()`, `query()`, `intent()`, `on()`
 - **A lock never disconnects** against a Connect ≥ 2.1 wallet: `wallet:locked` only sets `isWalletLocked`; a resume that lands on a locked wallet succeeds with `ConnectResult.locked === true`; `wallet:unlocked` compares the identity in the payload before resuming and re-subscribes to nothing (the host re-arms); `wallet:disconnected` is the only event that tears anything down. A 2.0 wallet (`walletProtocol`) still gets the old teardown — there, `wallet:locked` also revoked the session
 - Failures are classified by `.code` and `data.reason` (`src/lib/connectErrors.ts`), never by a message regex
 

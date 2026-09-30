@@ -1,9 +1,10 @@
-import type { PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
+import type { NetworkInfo, PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
 import type { Section } from '../../lib/types';
 import { WalletHeader } from './WalletHeader';
 
 interface PageShellProps {
   identity: PublicIdentity;
+  network: NetworkInfo;
   onDisconnect: () => void;
   isWalletLocked: boolean;
   section: Section;
@@ -62,10 +63,10 @@ function NavGroup({ title, color, items, active, onSelect }: {
   );
 }
 
-export function PageShell({ identity, onDisconnect, isWalletLocked, section, onSectionChange, children }: PageShellProps) {
+export function PageShell({ identity, network, onDisconnect, isWalletLocked, section, onSectionChange, children }: PageShellProps) {
   return (
     <div className="flex flex-col h-screen bg-(--bg-root)">
-      <WalletHeader identity={identity} onDisconnect={onDisconnect} isWalletLocked={isWalletLocked} />
+      <WalletHeader identity={identity} network={network} onDisconnect={onDisconnect} isWalletLocked={isWalletLocked} />
 
       {/* Mobile horizontal nav */}
       <div className="lg:hidden border-b border-white/8 bg-(--bg-surface) overflow-x-auto">

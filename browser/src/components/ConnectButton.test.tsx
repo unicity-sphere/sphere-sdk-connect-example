@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { TEST_REGISTRY } from '../test/networkRegistry';
@@ -9,20 +10,22 @@ vi.mock('@unicitylabs/sphere-sdk/connect', async (importOriginal) => {
   return { ...actual, SPHERE_NETWORKS: TEST_REGISTRY };
 });
 
-function renderButton(overrides: Partial<Parameters<typeof ConnectButton>[0]> = {}) {
-  const props = {
-    onConnect: () => {},
-    onConnectExtension: () => {},
-    onConnectPopup: vi.fn(),
-    isConnecting: false,
-    extensionInstalled: false,
-    error: null,
-    network: TEST_REGISTRY.testnet2,
-    onNetworkChange: vi.fn(),
-    ...overrides,
-  };
-  render(<ConnectButton {...props} />);
-  return props;
+function renderButton(overrides: Partial<ComponentProps<typeof ConnectButton>> = {}) {
+  const onNetworkChange = vi.fn();
+  render(
+    <ConnectButton
+      onConnect={() => {}}
+      onConnectExtension={() => {}}
+      onConnectPopup={() => {}}
+      isConnecting={false}
+      extensionInstalled={false}
+      error={null}
+      network={TEST_REGISTRY.testnet2}
+      onNetworkChange={onNetworkChange}
+      {...overrides}
+    />,
+  );
+  return { onNetworkChange };
 }
 
 const picker = () => screen.getByRole('combobox', { name: /network/i }) as HTMLSelectElement;
