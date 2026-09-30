@@ -21,8 +21,7 @@ dApp (ConnectClient)  ←→  Transport  ←→  Wallet (ConnectHost)
 > before any approval UI appears, so a dApp that is not bumped simply stops
 > connecting. The Connect protocol **MAJOR** is unchanged (still **2**), which is
 > all the gate compares — this is a dependency bump and a rebuild, nothing more.
-> (`SPHERE_CONNECT_VERSION` is **2.3** in sphere-sdk 0.17.2 and **2.1** in the
-> 0.14.2 pinned below.) See
+> (`SPHERE_CONNECT_VERSION` is **2.3** at the 0.17.6 pinned below.) See
 > [browser/CONNECT.md](browser/CONNECT.md#-your-dapp-needs-unicitylabssphere-sdk--0141).
 
 Not every example uses Connect: the **bot** runs its own wallet directly, and
@@ -114,7 +113,7 @@ All five packages pin the same published SDK version, exactly (no caret — thes
 are examples, and pin clarity matters more than float):
 
 ```json
-"@unicitylabs/sphere-sdk": "0.14.2"
+"@unicitylabs/sphere-sdk": "0.17.6"
 ```
 
 ## Documentation

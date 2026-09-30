@@ -10,7 +10,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { ConnectClient, HOST_READY_TYPE, HOST_READY_TIMEOUT, WALLET_EVENTS, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
 import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sdk/connect/browser';
-import type { ConnectTransport, PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
+import type { ConnectTransport, NetworkInfo, PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
 import type { PermissionScope } from '@unicitylabs/sphere-sdk/connect';
 import { isInIframe, hasExtension } from '../lib/detection';
 import { classifyRequestError, describeConnectFailure } from '../lib/connectErrors';
@@ -69,6 +69,28 @@ const DISCONNECTED: WalletConnectState = {
 };
 
 const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.network';
+
+/**
+ * The network this dApp targets, from `VITE_SPHERE_NETWORK` (`mainnet` | `testnet2`).
+ *
+ * NOT hard-coded. Both networks are live, the handshake is refused with INCOMPATIBLE_NETWORK
+ * (4008) when the dApp's network does not match the wallet's, and a bundle that can only ever
+ * mean one chain is how a build ships pointed at the wrong one. An unknown value falls back to
+ * testnet2 with a console warning rather than throwing: a typo in an env file must not turn into
+ * a blank page.
+ */
+function targetNetwork(): NetworkInfo {
+  const name = import.meta.env.VITE_SPHERE_NETWORK;
+  if (!name) return SPHERE_NETWORKS.testnet2;
+  const network = (SPHERE_NETWORKS as Record<string, NetworkInfo | undefined>)[name];
+  if (network) return network;
+  console.warn(
+    `[connect] Unknown VITE_SPHERE_NETWORK "${name}" — known: ${Object.keys(SPHERE_NETWORKS).join(', ')}. Falling back to testnet2.`,
+  );
+  return SPHERE_NETWORKS.testnet2;
+}
+
+const NETWORK: NetworkInfo = targetNetwork();
 
 // sessionStorage key for popup session resume (P3 only)
 const SESSION_KEY_POPUP = 'sphere-connect-popup-session';
@@ -171,7 +193,7 @@ export function useWalletConnect(): UseWalletConnect {
 
   const makeClient = useCallback(
     (transport: ConnectTransport, extra: { resumeSessionId?: string; silent?: boolean } = {}): ConnectClient =>
-      new ConnectClient({ transport, dapp: DAPP_META, network: SPHERE_NETWORKS.testnet2, ...extra }),
+      new ConnectClient({ transport, dapp: DAPP_META, network: NETWORK, ...extra }),
     [],
   );
 
