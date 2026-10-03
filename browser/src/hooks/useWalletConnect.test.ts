@@ -352,8 +352,8 @@ describe('useWalletConnect — a connect attempt that met a locked wallet', () =
       await Promise.resolve();
     });
 
-    await waitFor(() => expect(hook.result.current.error).toContain('mainnet (1)'));
-    expect(hook.result.current.error).toBe('This app targets testnet2 (4), but the wallet is on mainnet (1).');
+    await waitFor(() => expect(hook.result.current.error).toContain('mainnet'));
+    expect(hook.result.current.error).toBe('This app targets testnet2, but the wallet is on mainnet.');
     expect(hook.result.current.isConnected).toBe(false);
   });
 });
@@ -730,7 +730,7 @@ describe('useWalletConnect — the declared network', () => {
       await connectPopup(hook.result);
 
       expect(hook.result.current.isConnected).toBe(false);
-      expect(hook.result.current.error).toBe('This app targets testnet2 (4), but the wallet is on mainnet (1).');
+      expect(hook.result.current.error).toBe('This app targets testnet2, but the wallet is on mainnet.');
 
       act(() => {
         hook.result.current.selectNetwork(mainnet);

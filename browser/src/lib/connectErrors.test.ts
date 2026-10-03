@@ -157,8 +157,9 @@ describe('describeConnectFailure', () => {
       clientNetwork: { id: 1, name: 'mainnet' },
     });
     const s = describeConnectFailure(err);
-    expect(s).toContain('mainnet');
-    expect(s).toContain('4');
+    // The wallet reports its own side as `{ id }` with no name; the registry supplies one, so
+    // both sides read as names and neither carries a number the user has no use for.
+    expect(s).toBe('This app targets mainnet, but the wallet is on testnet2.');
   });
 
   it('falls back to the wallet message when the gate sent no versions', () => {
@@ -184,7 +185,7 @@ describe('describeConnectFailure — the network the wallet answered', () => {
       clientNetwork: { id: 9, name: 'devnet' },
     });
 
-    expect(describeConnectFailure(err)).toBe('This app targets devnet (9), but the wallet is on testnet2 (4).');
+    expect(describeConnectFailure(err)).toBe('This app targets devnet, but the wallet is on testnet2.');
   });
 
   it('still says "network <id>" for a wallet network the registry does not know', () => {
@@ -194,7 +195,7 @@ describe('describeConnectFailure — the network the wallet answered', () => {
       clientNetwork: { id: 4, name: 'testnet2' },
     });
 
-    expect(describeConnectFailure(err)).toBe('This app targets testnet2 (4), but the wallet is on network 424242.');
+    expect(describeConnectFailure(err)).toBe('This app targets testnet2, but the wallet is on network 424242.');
   });
 });
 

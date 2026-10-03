@@ -34,8 +34,10 @@ describe('networkOptions', () => {
     }
   });
 
-  it('labels an option from its registry entry — name and id', () => {
-    expect(networkOptions().map((o) => o.label)).toEqual(['mainnet (1)', 'testnet2 (4)', 'stagenet (7)']);
+  // The id belongs to the refusal copy and to naming a network the registry lacks, not to a list
+  // the user picks from by name.
+  it('labels an option with its registry name alone, without the id', () => {
+    expect(networkOptions().map((o) => o.label)).toEqual(['mainnet', 'testnet2', 'stagenet']);
   });
 });
 
@@ -122,18 +124,18 @@ describe('the stored choice', () => {
 
 describe('formatNetwork', () => {
   it('shows name and id', () => {
-    expect(formatNetwork({ id: 4, name: 'testnet2' })).toBe('testnet2 (4)');
+    expect(formatNetwork({ id: 4, name: 'testnet2' })).toBe('testnet2');
   });
 
   // A host answers `network: { id }` and nothing else — the id is the canonical key, the name is
   // metadata. Naming it from the registry is what makes "the wallet is on mainnet" readable.
   it('names a network from the registry when the peer sent only the id', () => {
-    expect(formatNetwork({ id: 1 })).toBe('mainnet (1)');
-    expect(formatNetwork({ id: 7 })).toBe('stagenet (7)');
+    expect(formatNetwork({ id: 1 })).toBe('mainnet');
+    expect(formatNetwork({ id: 7 })).toBe('stagenet');
   });
 
   it('keeps the name the peer sent', () => {
-    expect(formatNetwork({ id: 4, name: 'my-testnet' })).toBe('my-testnet (4)');
+    expect(formatNetwork({ id: 4, name: 'my-testnet' })).toBe('my-testnet');
   });
 
   it('says "network <id>" for an id the registry does not know', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import type { PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
 import { TEST_REGISTRY } from '../../test/networkRegistry';
 import { WalletHeader } from './WalletHeader';
@@ -36,18 +36,18 @@ describe('WalletHeader', () => {
   it('shows the network the session is on', () => {
     render(<WalletHeader identity={identity} network={TEST_REGISTRY.mainnet} onDisconnect={() => {}} isWalletLocked={false} />);
 
-    const picker = screen.getByRole('combobox', { name: /network/i }) as HTMLSelectElement;
-    expect(picker.selectedOptions[0]?.textContent).toBe('mainnet (1)');
+    const group = screen.getByRole('group', { name: 'Network' });
+    expect(within(group).getByText('mainnet')).toBeTruthy();
   });
 
   // A session is bound to the network declared in its handshake. The header offers no way to
-  // change it — the control is there so the user can SEE the network, and locked so they cannot
-  // mistake it for a setting of the live session.
-  it('locks the network control and tells the user to disconnect to change it', () => {
+  // change it — the network is there so the user can SEE it, as a readout rather than a control,
+  // so it cannot be mistaken for a setting of the live session.
+  it('shows the network as a readout and tells the user to disconnect to change it', () => {
     render(<WalletHeader identity={identity} network={network} onDisconnect={() => {}} isWalletLocked={false} />);
 
-    const picker = screen.getByRole('combobox', { name: /network/i }) as HTMLSelectElement;
-    expect(picker.disabled).toBe(true);
+    const group = screen.getByRole('group', { name: 'Network' });
+    expect(within(group).queryByRole('button')).toBeNull();
     expect(screen.getByText(/disconnect to switch/i)).toBeTruthy();
   });
 });

@@ -37,7 +37,14 @@ function registryKey(network: NetworkInfo): string | undefined {
   return Object.keys(REGISTRY).find((key) => REGISTRY[key]?.id === network.id);
 }
 
-/** `mainnet (1)`, `network 4`, or null when the peer sent no usable descriptor. */
+/**
+ * `mainnet`, `network 424242`, or null when the peer sent no usable descriptor.
+ *
+ * The numeric id is what the wallet's compatibility gate compares, but it is not what a person
+ * reads a network by, and "mainnet (1)" puts a number next to a name that already says the same
+ * thing. It appears only where it carries the whole meaning: a network no registry names, which
+ * has nothing else to be called.
+ */
 export function formatNetwork(value: unknown): string | null {
   if (typeof value !== 'object' || value === null) return null;
   const { id, name } = value as { id?: unknown; name?: unknown };
@@ -47,7 +54,7 @@ export function formatNetwork(value: unknown): string | null {
   const label =
     (typeof name === 'string' && name.length > 0 ? name : null) ??
     Object.values(REGISTRY).find((n) => n.id === id)?.name;
-  return label ? `${label} (${id})` : `network ${id}`;
+  return label ?? `network ${id}`;
 }
 
 export interface NetworkOption {
@@ -55,6 +62,7 @@ export interface NetworkOption {
   readonly key: string;
   /** The registry entry itself — exactly what ConnectClient's `network` option takes. */
   readonly network: NetworkInfo;
+  /** What the user reads when choosing: the network's name. */
   readonly label: string;
 }
 
