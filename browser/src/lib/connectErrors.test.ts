@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ConnectError, ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
-import { classifyRequestError, connectErrorCode, lockedData, describeConnectFailure } from './connectErrors';
+import { classifyRequestError, connectErrorCode, lockedData, describeConnectFailure, isNetworkRefusal } from './connectErrors';
 
 /** Exactly what ConnectHost sends on a 4009 in Release 1. */
 const locked = () => new ConnectError('Wallet is locked', ERROR_CODES.WALLET_LOCKED, { reason: 'locked' });
@@ -157,8 +157,9 @@ describe('describeConnectFailure', () => {
       clientNetwork: { id: 1, name: 'mainnet' },
     });
     const s = describeConnectFailure(err);
-    expect(s).toContain('mainnet');
-    expect(s).toContain('4');
+    // The wallet reports its own side as `{ id }` with no name; the registry supplies one, so
+    // both sides read as names and neither carries a number the user has no use for.
+    expect(s).toBe('This app targets mainnet, but the wallet is on testnet2.');
   });
 
   it('falls back to the wallet message when the gate sent no versions', () => {
@@ -170,5 +171,47 @@ describe('describeConnectFailure', () => {
   it('passes non-gate failures through untouched', () => {
     expect(describeConnectFailure(new Error('Wallet popup was closed'))).toBe('Wallet popup was closed');
     expect(describeConnectFailure('nope')).toBe('Connection failed');
+  });
+});
+
+describe('describeConnectFailure — the network the wallet answered', () => {
+  // A host reports its network as `{ id }` and nothing more: the id is the canonical key, the name
+  // is metadata. Naming the wallet's network from the SDK registry is what turns "network 4" into
+  // something a developer can act on.
+  it('names the wallet network from the SDK registry when the wallet sent only its id', () => {
+    const err = new ConnectError('dApp targets a different network than the wallet', ERROR_CODES.INCOMPATIBLE_NETWORK, {
+      reason: 'network_incompatible',
+      walletNetwork: { id: 4 },
+      clientNetwork: { id: 9, name: 'devnet' },
+    });
+
+    expect(describeConnectFailure(err)).toBe('This app targets devnet, but the wallet is on testnet2.');
+  });
+
+  it('still says "network <id>" for a wallet network the registry does not know', () => {
+    const err = new ConnectError('dApp targets a different network than the wallet', ERROR_CODES.INCOMPATIBLE_NETWORK, {
+      reason: 'network_incompatible',
+      walletNetwork: { id: 424242 },
+      clientNetwork: { id: 4, name: 'testnet2' },
+    });
+
+    expect(describeConnectFailure(err)).toBe('This app targets testnet2, but the wallet is on network 424242.');
+  });
+});
+
+describe('isNetworkRefusal', () => {
+  it('is true for INCOMPATIBLE_NETWORK and nothing else', () => {
+    expect(isNetworkRefusal(new ConnectError('x', ERROR_CODES.INCOMPATIBLE_NETWORK))).toBe(true);
+    expect(isNetworkRefusal(new ConnectError('x', ERROR_CODES.UNSUPPORTED_PROTOCOL_VERSION))).toBe(false);
+    expect(isNetworkRefusal(new ConnectError('x', ERROR_CODES.WALLET_LOCKED))).toBe(false);
+    expect(isNetworkRefusal(new Error('Connection rejected by wallet'))).toBe(false);
+    expect(isNetworkRefusal('nope')).toBe(false);
+    expect(isNetworkRefusal(null)).toBe(false);
+  });
+
+  // The app never trusts `instanceof ConnectError` (the /connect/browser entry ships its own copy
+  // of the class), so a refusal that merely carries the code must count.
+  it('recognises a duck-typed error carrying the code', () => {
+    expect(isNetworkRefusal({ code: ERROR_CODES.INCOMPATIBLE_NETWORK })).toBe(true);
   });
 });

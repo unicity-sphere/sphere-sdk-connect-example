@@ -8,12 +8,13 @@
  * already hides the extension option. Do not read the P2 branches as a production integration.
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { ConnectClient, HOST_READY_TYPE, HOST_READY_TIMEOUT, WALLET_EVENTS, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import { ConnectClient, HOST_READY_TYPE, HOST_READY_TIMEOUT, WALLET_EVENTS } from '@unicitylabs/sphere-sdk/connect';
 import { PostMessageTransport, ExtensionTransport } from '@unicitylabs/sphere-sdk/connect/browser';
 import type { ConnectTransport, NetworkInfo, PublicIdentity, RpcMethod, IntentAction } from '@unicitylabs/sphere-sdk/connect';
 import type { PermissionScope } from '@unicitylabs/sphere-sdk/connect';
 import { isInIframe, hasExtension } from '../lib/detection';
-import { classifyRequestError, describeConnectFailure } from '../lib/connectErrors';
+import { classifyRequestError, describeConnectFailure, isNetworkRefusal } from '../lib/connectErrors';
+import { envNetwork, readStoredNetwork, storeNetwork } from '../lib/networks';
 import { supportsGracefulLock } from '../lib/walletProtocol';
 
 export interface WalletConnectState {
@@ -33,12 +34,25 @@ export interface WalletConnectState {
   /** Connect protocol version the WALLET reported at handshake ('2.3', '2.1', '2.0', …), or null.
    *  Decides what wallet:locked means — see src/lib/walletProtocol.ts. */
   walletProtocol: string | null;
+  /** The network the connected session is on, as the WALLET answered the handshake (`{ id }`;
+   *  name it with `formatNetwork`). null while disconnected. It is the network this app declared
+   *  in that handshake — the gate refuses anything else — and stays so for the whole session. */
+  sessionNetwork: NetworkInfo | null;
   identity: PublicIdentity | null;
   permissions: readonly PermissionScope[];
   error: string | null;
 }
 
 export interface UseWalletConnect extends WalletConnectState {
+  /** The network the NEXT handshake declares: the user's pick, else the build default. */
+  network: NetworkInfo;
+  /**
+   * Change the network the next handshake declares, and remember it across reloads. Ignored while
+   * connected, connecting or auto-connecting: a session is bound to the network declared in its
+   * handshake, so changing the pick under one would leave it claiming a network this app no
+   * longer declares. Disconnect first.
+   */
+  selectNetwork: (next: NetworkInfo) => void;
   connect: () => Promise<void>;
   connectViaExtension: () => Promise<void>;
   connectViaPopup: () => Promise<void>;
@@ -63,6 +77,7 @@ const DISCONNECTED: WalletConnectState = {
   walletChanged: false,
   unlockEpoch: 0,
   walletProtocol: null,
+  sessionNetwork: null,
   identity: null,
   permissions: [],
   error: null,
@@ -71,26 +86,21 @@ const DISCONNECTED: WalletConnectState = {
 const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.network';
 
 /**
- * The network this dApp targets, from `VITE_SPHERE_NETWORK` (`mainnet` | `testnet2`).
+ * The network this build declares until the user picks one: `VITE_SPHERE_NETWORK` (any key of the
+ * SDK's `SPHERE_NETWORKS`, e.g. `mainnet` | `testnet2`), else testnet2. An unknown value falls
+ * back to testnet2 with a console warning — see `envNetwork`.
  *
- * NOT hard-coded. Both networks are live, the handshake is refused with INCOMPATIBLE_NETWORK
- * (4008) when the dApp's network does not match the wallet's, and a bundle that can only ever
- * mean one chain is how a build ships pointed at the wrong one. An unknown value falls back to
- * testnet2 with a console warning rather than throwing: a typo in an env file must not turn into
- * a blank page.
+ * NOT hard-coded: the wallet refuses a handshake whose network is not its own
+ * (INCOMPATIBLE_NETWORK, 4008), and a bundle that can only ever mean one chain is how a build
+ * ships pointed at the wrong one. Read once at load, like the wallet URL above; the user's stored
+ * pick, when there is one, wins over it.
+ *
+ * This supersedes main's `targetNetwork()`, which read the same variable with the same fallback
+ * and the same warning. The difference is what sits on top: the env value is now only a DEFAULT,
+ * and the user can choose per session. Keeping both would have left two readers of one variable
+ * disagreeing about which one the handshake actually declares.
  */
-function targetNetwork(): NetworkInfo {
-  const name = import.meta.env.VITE_SPHERE_NETWORK;
-  if (!name) return SPHERE_NETWORKS.testnet2;
-  const network = (SPHERE_NETWORKS as Record<string, NetworkInfo | undefined>)[name];
-  if (network) return network;
-  console.warn(
-    `[connect] Unknown VITE_SPHERE_NETWORK "${name}" — known: ${Object.keys(SPHERE_NETWORKS).join(', ')}. Falling back to testnet2.`,
-  );
-  return SPHERE_NETWORKS.testnet2;
-}
-
-const NETWORK: NetworkInfo = targetNetwork();
+const DEFAULT_NETWORK: NetworkInfo = envNetwork(import.meta.env.VITE_SPHERE_NETWORK);
 
 // sessionStorage key for popup session resume (P3 only)
 const SESSION_KEY_POPUP = 'sphere-connect-popup-session';
@@ -168,6 +178,13 @@ export function useWalletConnect(): UseWalletConnect {
 
   const [state, setState] = useState<WalletConnectState>(DISCONNECTED);
 
+  // The network the next handshake declares. State for the UI, and a ref for the handshakes: they
+  // start from listeners and timers registered once, which would read a stale closure copy. The
+  // ref is written in the same tick as the state, so a handshake that starts right after a pick
+  // already sees it.
+  const [network, setNetwork] = useState<NetworkInfo>(() => readStoredNetwork() ?? DEFAULT_NETWORK);
+  const networkRef = useRef(network);
+
   const clientRef = useRef<ConnectClient | null>(null);
   const transportRef = useRef<ConnectTransport | null>(null);
   const popupRef = useRef<Window | null>(null);
@@ -192,8 +209,13 @@ export function useWalletConnect(): UseWalletConnect {
   const attemptInFlightRef = useRef(false);
 
   const makeClient = useCallback(
-    (transport: ConnectTransport, extra: { resumeSessionId?: string; silent?: boolean } = {}): ConnectClient =>
-      new ConnectClient({ transport, dapp: DAPP_META, network: NETWORK, ...extra }),
+    // The network is a PARAMETER, not a module constant: it is read once per handshake from the
+    // user's pick, so a session stays bound to what it declared even if the pick changes later.
+    (
+      transport: ConnectTransport,
+      declared: NetworkInfo,
+      extra: { resumeSessionId?: string; silent?: boolean } = {},
+    ): ConnectClient => new ConnectClient({ transport, dapp: DAPP_META, network: declared, ...extra }),
     [],
   );
 
@@ -207,10 +229,19 @@ export function useWalletConnect(): UseWalletConnect {
    */
   const handshake = useCallback(
     async (transport: ConnectTransport, extra: { resumeSessionId?: string; silent?: boolean } = {}) => {
-      const client = makeClient(transport, extra);
+      // Read once, here: THE network this session will be bound to.
+      const declared = networkRef.current;
+      const client = makeClient(transport, declared, extra);
       clientRef.current = client;
       const result = await client.connect();
       if (popupMode.current) sessionStorage.setItem(SESSION_KEY_POPUP, result.sessionId);
+      // A background handshake (the retry after an unlock) can finish after the user picked
+      // something else — the picker is open while nobody is connected. The session is what it
+      // declared, so the pick follows it: a live session never disagrees with the network this
+      // app declares, and the HOST_READY re-handshake, which declares `networkRef`, resumes it on
+      // the network it was made on. Storage is left alone; that is the user's own pick.
+      networkRef.current = declared;
+      setNetwork(declared);
       setState({
         ...DISCONNECTED,
         isConnected: true,
@@ -218,10 +249,32 @@ export function useWalletConnect(): UseWalletConnect {
         identity: result.identity,
         permissions: result.permissions,
         walletProtocol: client.walletProtocol,
+        // What the wallet ANSWERED, not what we asked for: the gate makes them the same id, and
+        // showing the answer is what keeps the UI honest if a wallet ever disagrees.
+        sessionNetwork: client.walletNetwork ?? declared,
       });
       return result;
     },
     [makeClient],
+  );
+
+  // A session is bound to the network declared in its handshake, so the pick is frozen while one
+  // exists or is being made by a click. The silent paths (the mount-time resume, the HOST_READY
+  // re-handshake) are covered by `isAutoConnecting` and `isConnected`; the retry after an unlock
+  // sets neither, and is reconciled in handshake() instead.
+  //
+  // Deliberately NOT keyed on `clientRef.current`, nor on "a handshake is running": a refused
+  // handshake leaves its client in that ref, and a silent one can hang until its own timeout —
+  // either would leave the picker open and dead, ignoring clicks for no visible reason.
+  const networkLocked = state.isConnected || state.isConnecting || isAutoConnecting;
+  const selectNetwork = useCallback(
+    (next: NetworkInfo) => {
+      if (networkLocked) return;
+      networkRef.current = next;
+      setNetwork(next);
+      storeNetwork(next);
+    },
+    [networkLocked],
   );
 
   const rehandshaking = useRef(false);
@@ -279,9 +332,17 @@ export function useWalletConnect(): UseWalletConnect {
       transportRef.current = transport;
       const resumeSessionId = sessionStorage.getItem(SESSION_KEY_POPUP) ?? undefined;
       await handshake(transport, { resumeSessionId });
-    } catch {
+    } catch (err) {
       // Still not ready, or the user declined. Leave the state alone — the next announcement
       // (or an explicit click) tries again.
+      //
+      // A network mismatch is neither: the wallet is ready and refused THIS app, and nothing
+      // will change on a retry. Say so — left alone, the screen keeps the stale "Connection
+      // rejected by wallet" of the attempt that met the lock, and the user never learns the
+      // network was the reason.
+      if (isNetworkRefusal(err)) {
+        setState((s) => ({ ...s, isConnecting: false, error: describeConnectFailure(err) }));
+      }
     } finally {
       rehandshaking.current = false;
     }
@@ -801,6 +862,8 @@ export function useWalletConnect(): UseWalletConnect {
 
   return {
     ...state,
+    network,
+    selectNetwork,
     connect,
     connectViaExtension,
     connectViaPopup,

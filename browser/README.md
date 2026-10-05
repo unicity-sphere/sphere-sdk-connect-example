@@ -182,6 +182,29 @@ const { identity } = await client.connect();   // silent on load if the origin i
 > `src/lib/connectErrors.ts` does. See
 > [`../backend-auth/frontend`](../backend-auth/frontend) for that style.
 
+## Choosing the network
+
+The handshake carries the network this app targets, and the wallet refuses a mismatch with
+`INCOMPATIBLE_NETWORK` (4008). So the connect screen has a **Network** selector next to the
+Connect button, and the choice is what `ConnectClient`'s `network` option receives.
+
+- **Options** are the SDK's own `SPHERE_NETWORKS`, labelled from it (`testnet2 (4)`). Nothing in
+  the example names a network, so one the SDK adds appears with no change here. The registry
+  depends on the installed SDK: **0.14.2 (the pin here) lists `testnet2` only; 0.16+ adds
+  `mainnet`** — with the pin as it is, the selector has one entry.
+- **Default:** `VITE_SPHERE_NETWORK` (any registry key), else `testnet2`. An unknown value falls
+  back to `testnet2` with a console warning.
+- **Remembered:** the pick is stored in `localStorage` (`sphere-connect-network`) and wins over
+  the env default on the next visit. A stored value that is not a registry key is ignored.
+- **A session is bound to the network it declared.** While connected (or while a connect attempt
+  is in flight) the selector is disabled, and the header shows the session's network — the one
+  the wallet answered — read-only. **Disconnect to switch.** A refusal renders as
+  `This app targets testnet2 (4), but the wallet is on mainnet (1).`; pick the wallet's network
+  and connect again.
+
+The logic lives in `src/lib/networks.ts` (registry, default, storage), `src/hooks/useWalletConnect.ts`
+(`network`, `selectNetwork`, `sessionNetwork`) and `src/components/NetworkPicker.tsx`.
+
 ## Documentation
 
 - [CONNECT.md](CONNECT.md) — full browser dApp integration guide

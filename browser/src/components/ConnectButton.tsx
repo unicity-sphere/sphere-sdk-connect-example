@@ -1,5 +1,7 @@
 import { Button } from '@unicitylabs/sphere-ui';
+import type { NetworkInfo } from '@unicitylabs/sphere-sdk/connect';
 import { EnvSwitch } from './EnvSwitch';
+import { NetworkPicker } from './NetworkPicker';
 
 interface ConnectButtonProps {
   onConnect: () => void;
@@ -8,6 +10,9 @@ interface ConnectButtonProps {
   isConnecting: boolean;
   extensionInstalled: boolean;
   error: string | null;
+  /** The network the handshake will declare. */
+  network: NetworkInfo;
+  onNetworkChange: (network: NetworkInfo) => void;
 }
 
 function Spinner() {
@@ -26,6 +31,8 @@ export function ConnectButton({
   isConnecting,
   extensionInstalled,
   error,
+  network,
+  onNetworkChange,
 }: ConnectButtonProps) {
   // Extension connection is temporarily hidden — popup is the only method for now,
   // so "Connect Wallet" opens the popup directly (no method chooser modal).
@@ -43,20 +50,30 @@ export function ConnectButton({
 
       <EnvSwitch />
 
-      <Button
-        onClick={() => !isConnecting && onConnectPopup()}
-        disabled={isConnecting}
-        className="px-8 py-4 text-lg shadow-lg shadow-orange-500/25"
-      >
-        {isConnecting ? (
-          <span className="flex items-center gap-2">
-            <Spinner />
-            Connecting...
-          </span>
-        ) : (
-          'Connect Wallet'
-        )}
-      </Button>
+      <div className="flex flex-col items-center gap-4">
+        {/* The handshake declares this network and the wallet refuses a mismatch, so the choice
+            sits where the user connects. It locks while an attempt is in flight. */}
+        <NetworkPicker
+          value={network}
+          onChange={onNetworkChange}
+          lockedReason={isConnecting ? 'Locked while the connect attempt is in flight.' : undefined}
+        />
+
+        <Button
+          onClick={() => !isConnecting && onConnectPopup()}
+          disabled={isConnecting}
+          className="px-8 py-4 text-lg shadow-lg shadow-orange-500/25"
+        >
+          {isConnecting ? (
+            <span className="flex items-center gap-2">
+              <Spinner />
+              Connecting...
+            </span>
+          ) : (
+            'Connect Wallet'
+          )}
+        </Button>
+      </div>
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl max-w-md text-center text-sm">

@@ -18,7 +18,7 @@
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-table": "^8.21.3",
     "@unicitylabs/sphere-sdk": "0.18.0",
-    "@unicitylabs/sphere-ui": "^0.1.34",
+    "@unicitylabs/sphere-ui": "^0.1.46",
     "lucide-react": "^0.400.0",
     "react": "^19.1.1",
     "react-dom": "^19.2.4",

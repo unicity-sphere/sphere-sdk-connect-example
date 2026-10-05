@@ -1,17 +1,20 @@
-import type { PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
+import type { NetworkInfo, PublicIdentity } from '@unicitylabs/sphere-sdk/connect';
 import { Button } from '@unicitylabs/sphere-ui';
 import { truncate } from '../../lib/format';
 import { EnvSwitch } from '../EnvSwitch';
+import { NetworkPicker } from '../NetworkPicker';
 
 interface WalletHeaderProps {
   identity: PublicIdentity;
+  /** The network the session is on, as the wallet answered the handshake. */
+  network: NetworkInfo;
   onDisconnect: () => void;
   /** Locked means locked-but-connected. A green "Connected" badge here would be a lie the
    *  user acts on while every panel answers WALLET_LOCKED (4009). */
   isWalletLocked: boolean;
 }
 
-export function WalletHeader({ identity, onDisconnect, isWalletLocked }: WalletHeaderProps) {
+export function WalletHeader({ identity, network, onDisconnect, isWalletLocked }: WalletHeaderProps) {
   return (
     <header className="bg-(--bg-surface) border-b border-white/8 px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -25,6 +28,12 @@ export function WalletHeader({ identity, onDisconnect, isWalletLocked }: WalletH
         </span>
       </div>
       <div className="flex items-center gap-3">
+        {/* Read-only by design: a session is bound to the network declared in its handshake. */}
+        <NetworkPicker
+          compact
+          value={network}
+          lockedReason="This session is bound to the network it declared. Disconnect to switch network."
+        />
         <EnvSwitch />
         {isWalletLocked ? (
           <span className="inline-flex items-center gap-1.5 text-xs text-amber-400">

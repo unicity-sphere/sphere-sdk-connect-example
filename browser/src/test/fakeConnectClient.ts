@@ -50,6 +50,14 @@ export class FakeConnectClient {
    * refusal from a host built behind the lock screen.
    */
   static nextConnectError: Error | null = null;
+  /**
+   * The network the fake WALLET is on. connect() refuses a client that declares another one,
+   * the way the real host does (sphere-sdk `checkCompatibility`, the network step) — so a test
+   * that picks a network meets the refusal itself instead of asserting on a canned error.
+   */
+  static walletNetworkId = 4;
+  /** While set, connect() waits on it — a handshake that is still in flight. */
+  static connectGate: Promise<void> | null = null;
 
   static reset(): void {
     FakeConnectClient.instances = [];
@@ -58,6 +66,8 @@ export class FakeConnectClient {
     FakeConnectClient.nextWalletProtocol = '2.1';
     FakeConnectClient.nextLocked = false;
     FakeConnectClient.nextConnectError = null;
+    FakeConnectClient.walletNetworkId = 4;
+    FakeConnectClient.connectGate = null;
   }
 
   /** Never index the array directly — browser/tsconfig.json has noUncheckedIndexedAccess. */
@@ -88,15 +98,42 @@ export class FakeConnectClient {
     FakeConnectClient.instances.push(this);
   }
 
+  /**
+   * The wallet's network as it answered the handshake — `{ id }` and nothing else, which is all
+   * a real host sends (`sendHandshakeResponse`). null until a handshake succeeds.
+   */
+  get walletNetwork(): { id: number } | null {
+    return this.walletNet;
+  }
+
+  private walletNet: { id: number } | null = null;
+
   async connect(): Promise<{
     sessionId: string;
     permissions: string[];
     identity: PublicIdentity;
     locked?: boolean;
   }> {
+    if (FakeConnectClient.connectGate) await FakeConnectClient.connectGate;
     if (FakeConnectClient.nextConnectError) {
       throw FakeConnectClient.nextConnectError;
     }
+    // The host's network gate: a MISSING network is a mismatch too. Built as a plain coded
+    // Error rather than a ConnectError — this module is loaded from inside the vi.mock factory
+    // for '@unicitylabs/sphere-sdk/connect', so it cannot import that package back. The app
+    // reads `.code` and `.data` by duck typing anyway (src/lib/connectErrors.ts).
+    const declared = this.options.network as { id: number; name?: string } | undefined;
+    if (!declared || declared.id !== FakeConnectClient.walletNetworkId) {
+      throw Object.assign(new Error('dApp targets a different network than the wallet'), {
+        code: 4008, // ERROR_CODES.INCOMPATIBLE_NETWORK
+        data: {
+          reason: 'network_incompatible',
+          walletNetwork: { id: FakeConnectClient.walletNetworkId },
+          clientNetwork: declared ?? null,
+        },
+      });
+    }
+    this.walletNet = { id: FakeConnectClient.walletNetworkId };
     this.session = FakeConnectClient.nextSessionId;
     return {
       sessionId: FakeConnectClient.nextSessionId,
@@ -109,6 +146,7 @@ export class FakeConnectClient {
   async disconnect(): Promise<void> {
     this.disconnectCalls += 1;
     this.session = null;
+    this.walletNet = null;
   }
 
   async query<T>(method: string): Promise<T> {

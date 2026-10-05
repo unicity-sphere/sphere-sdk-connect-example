@@ -25,6 +25,7 @@
  */
 import { ERROR_CODES } from '@unicitylabs/sphere-sdk/connect';
 import type { WalletLockedData } from '@unicitylabs/sphere-sdk/connect';
+import { formatNetwork } from './networks';
 
 export type RequestErrorKind =
   /** WALLET_LOCKED (4009). Session alive. Show the lock, keep everything, let the caller retry. */
@@ -101,15 +102,6 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-/** `mainnet (1)` / `network 4`, or null when the peer sent no usable descriptor. */
-function describeNetwork(value: unknown): string | null {
-  if (typeof value !== 'object' || value === null) return null;
-  const { id, name } = value as { id?: unknown; name?: unknown };
-  if (typeof id !== 'number') return null;
-  const label = text(name);
-  return label ? `${label} (${id})` : `network ${id}`;
-}
-
 /**
  * Connect-screen copy for a failed handshake.
  *
@@ -120,6 +112,10 @@ function describeNetwork(value: unknown): string | null {
  * so rendering `err.message` alone tells a developer to upgrade without saying to what.
  * Read `data` and say it. When the gate sent no versions the wallet's own message is already
  * the best available text — pass it through rather than inventing worse copy.
+ *
+ * The network check reports the wallet's side as `{ id }` only — the id is the key the gate
+ * compares, the name is metadata — so the wallet's network is named from the SDK registry
+ * (`src/lib/networks.ts`), which is what makes "the wallet is on mainnet (1)" readable.
  *
  * Every field is read defensively: `data` crosses postMessage from a peer on an SDK version
  * this app does not control.
@@ -138,8 +134,8 @@ export function describeConnectFailure(err: unknown): string {
   const bag = data as Record<string, unknown>;
 
   if (code === ERROR_CODES.INCOMPATIBLE_NETWORK) {
-    const client = describeNetwork(bag.clientNetwork);
-    const wallet = describeNetwork(bag.walletNetwork);
+    const client = formatNetwork(bag.clientNetwork);
+    const wallet = formatNetwork(bag.walletNetwork);
     return client && wallet
       ? `This app targets ${client}, but the wallet is on ${wallet}.`
       : fallback;
@@ -159,6 +155,17 @@ export function describeConnectFailure(err: unknown): string {
   }
 
   return fallback;
+}
+
+/**
+ * The wallet refused the handshake because this app declared a different network than the one
+ * it is on (INCOMPATIBLE_NETWORK, 4008).
+ *
+ * Unlike a lock or a version floor, the user can fix this on the spot — pick the wallet's network
+ * — so it is worth surfacing from a handshake nobody clicked for.
+ */
+export function isNetworkRefusal(err: unknown): boolean {
+  return connectErrorCode(err) === ERROR_CODES.INCOMPATIBLE_NETWORK;
 }
 
 export function classifyRequestError(err: unknown): RequestErrorKind {
