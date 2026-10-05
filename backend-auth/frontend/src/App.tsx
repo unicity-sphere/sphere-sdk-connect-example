@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { autoConnect } from '@unicitylabs/sphere-sdk/connect/browser';
 import type { AutoConnectResult } from '@unicitylabs/sphere-sdk/connect/browser';
 import { INTENT_ACTIONS, PERMISSION_SCOPES, SPHERE_NETWORKS } from '@unicitylabs/sphere-sdk/connect';
+import type { NetworkInfo } from '@unicitylabs/sphere-sdk/connect';
 import { describeError, isWalletLocked } from './errors';
 
 /**
@@ -26,6 +27,22 @@ import { describeError, isWalletLocked } from './errors';
 
 const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) || 'http://localhost:8787';
 const WALLET_URL = (import.meta.env.VITE_WALLET_URL as string | undefined) || 'https://sphere.unicity.network';
+
+/**
+ * The network this dApp targets, from `VITE_SPHERE_NETWORK` (`mainnet` | `testnet2`).
+ *
+ * Not hard-coded: both networks are live, and a handshake whose network does not match the
+ * wallet's is refused with INCOMPATIBLE_NETWORK (4008) before any UI appears. An unknown value
+ * falls back to testnet2 with a warning — a typo in an env file must not produce a blank page.
+ */
+const NETWORK: NetworkInfo = (() => {
+  const name = import.meta.env.VITE_SPHERE_NETWORK as string | undefined;
+  if (!name) return SPHERE_NETWORKS.testnet2;
+  const network = (SPHERE_NETWORKS as Record<string, NetworkInfo | undefined>)[name];
+  if (network) return network;
+  console.warn(`[connect] Unknown VITE_SPHERE_NETWORK "${name}" — falling back to testnet2.`);
+  return SPHERE_NETWORKS.testnet2;
+})();
 
 type Step =
   | 'idle'
@@ -112,7 +129,7 @@ export default function App() {
           url: location.origin,
         },
         walletUrl: WALLET_URL,
-        network: SPHERE_NETWORKS.testnet2,
+        network: NETWORK,
         permissions: [PERMISSION_SCOPES.IDENTITY_READ, PERMISSION_SCOPES.SIGN_REQUEST],
       });
       setConnection(auto);

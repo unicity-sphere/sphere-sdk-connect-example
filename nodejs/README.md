@@ -63,6 +63,8 @@ identity | balance | assets | fiat | tokens | history | resolve @tag   # queries
 send @to <amount-base-units> <coinId-hex>                              # intents
 pay  @to <amount-base-units> <coinId-hex> [msg]                        # payment request
 mint <coinId-hex> <amount-base-units> | dm @to <msg> | receive | sign <msg>
+mintnft [name]                                                         # NFT (Connect 2.3)
+sendnft @to <tokenId>                                                  # expect -32601
 conversations | messages <pubkey> | unread | read <id...>              # chat
 ```
 
@@ -70,14 +72,34 @@ conversations | messages <pubkey> | unread | read <id...>              # chat
 > 64-hex id — the same contract the wallet enforces. A `send` may resolve with
 > `deliveryPending: true` and no `transferId`; that is a success, not a retry.
 
+> `mintnft` builds an `NftContent` and puts it on the wire through `nftContentToWire()` —
+> Connect messages are JSON, so inline media bytes become base64 and every metadata field must
+> be present (`null` for the absent ones). `sendnft` is expected to be **refused with
+> `-32601`**: `send_nft` is declared in Connect 2.2 and **no wallet implements it**, so the mock
+> refuses it exactly as the real Sphere wallet does rather than faking a success.
+
+> `SPHERE_NETWORK=mainnet|testnet2` (default `testnet2`) decides which network the client
+> declares in its handshake. A mismatch with the wallet is refused with `INCOMPATIBLE_NETWORK`
+> (4008), and so is declaring none at all.
+
 ### What the mock wallet teaches
 
-`src/mockSphere.ts` is shaped like a **real sphere-sdk 0.14 wallet**: `payments` is the
-payments-v2 facade (`assets()` / `tokens()` / paged `history()`), and `paymentsV2` is the
-deprecated alias that `ConnectHost` reads to detect a v2 wallet. The host maps the Connect wire
-onto it — `sphere_getBalance` and `sphere_getAssets` both serve `assets()`, `sphere_getHistory`
-walks every `history()` page and flattens them — so the **dApp side of the wire did not change
-at all** in 0.14. That is the point: the payments rebuild is invisible to a Connect client.
+`src/mockSphere.ts` is shaped like a **real wallet**: `payments` is the payments-v2 facade
+(`assets()` / `tokens()` / paged `history()` / `requests`). There is no `paymentsV2` alias — the
+SDK's `SphereInstance` declares `payments` alone. The host maps the Connect wire onto it —
+`sphere_getBalance` and `sphere_getAssets` both serve `assets()`, `sphere_getHistory` walks every
+`history()` page and flattens them — so the **dApp side of the wire did not change at all** in
+0.14. That is the point: the payments rebuild is invisible to a Connect client.
+
+`src/mockIntents.ts` holds the intent answers, in their own module so the tests can reach them
+(importing `mock-wallet-server.ts` starts a WebSocket server as a side effect). They mirror the
+real wallet where it succeeds *and* where it refuses. `mint_nft` runs the **two** checks a wallet
+runs before it shows an approval screen: `nftContentFromWire()` for shape and base64, then
+`encodeNftContent()` for the value rules — media types, link schemes, and a link's `sha256` being
+the 64-hex digest of the linked file. The second one matters: `sha256: ''` passes the wire codec
+and dies in `encodeNftContent`, so a mock that stopped at the codec would accept content the real
+wallet must refuse. Either throw becomes an `INVALID_PARAMS` refusal naming the field, rather than
+a payload signed blind. `send_nft` is answered `-32601`.
 
 ## How the connection is made
 

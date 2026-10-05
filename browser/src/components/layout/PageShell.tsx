@@ -28,6 +28,7 @@ const INTENTS: NavItem[] = [
   { key: 'receive', label: 'Receive' },
   { key: 'sign-message', label: 'Sign Message' },
   { key: 'mint', label: 'Mint' },
+  { key: 'mint-nft', label: 'Mint NFT' },
 ];
 const CHAT: NavItem[] = [
   { key: 'chat', label: 'Chat' },

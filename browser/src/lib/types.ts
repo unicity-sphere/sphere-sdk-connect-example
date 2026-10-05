@@ -77,7 +77,7 @@ export interface ConversationPage {
 
 export type Section =
   | 'identity' | 'assets' | 'balance' | 'tokens' | 'history' | 'resolve'
-  | 'send' | 'dm' | 'payment-request' | 'receive' | 'sign-message' | 'mint'
+  | 'send' | 'dm' | 'payment-request' | 'receive' | 'sign-message' | 'mint' | 'mint-nft'
   | 'chat'
   | 'events'
   | 'docs';
