@@ -8,6 +8,7 @@ import { ConnectHost, PERMISSION_SCOPES } from '@unicitylabs/sphere-sdk/connect'
 import type { DAppMetadata, LockedRequestContext, PermissionScope } from '@unicitylabs/sphere-sdk/connect';
 import { WebSocketTransport } from '@unicitylabs/sphere-sdk/connect/nodejs';
 import readline from 'readline';
+import { answerIntent } from './mockIntents';
 import { mockSphere } from './mockSphere';
 
 const PORT = 8765;
@@ -58,42 +59,13 @@ async function main() {
       console.log('Params:', JSON.stringify(params, null, 2));
       console.log('Auto-approving...\n');
 
-      switch (action) {
-        case 'send':
-          return {
-            result: {
-              id: `xfer-${Date.now()}`, status: 'delivered',
-              tokens: [{ id: `tok-new-${Date.now()}`, coinId: params.coinId ?? 'UCT', amount: params.amount, status: 'transferring' }],
-              tokenTransfers: [{ sourceTokenId: 'tok-abc123def456', method: 'direct' }],
-            },
-          };
-        case 'mint':
-          return {
-            result: {
-              tokenId: 'aa'.repeat(32),
-              coinId: params.coinId,
-              amount: params.amount,
-            },
-          };
-        case 'dm':
-          return { result: { sent: true, messageId: `msg-${Date.now()}`, timestamp: Date.now() } };
-        case 'payment_request':
-          return { result: { success: true, requestId: `pr-${Date.now()}`, createdAt: Date.now() } };
-        case 'receive':
-          return {
-            result: {
-              transfers: [{
-                id: 'inc-1', senderPubkey: '03fed...', senderNametag: 'charlie',
-                tokens: [{ id: 'tok-inc1', coinId: 'UCT', amount: '50000000' }],
-                receivedAt: Date.now(),
-              }],
-            },
-          };
-        case 'sign_message':
-          return { result: { signature: '3045022100abcdef...', message: params.message, publicKey: '02abc123...' } };
-        default:
-          return { result: { success: true, action, timestamp: Date.now() } };
+      // The answers live in src/mockIntents.ts so the tests can reach them: importing THIS file
+      // starts a WebSocket server as a side effect.
+      const answer = await answerIntent(action, params);
+      if (answer.error) {
+        console.log(`Refusing ${action}: ${answer.error.code} ${answer.error.message}\n`);
       }
+      return answer;
     },
   } as any);
 

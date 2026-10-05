@@ -30,18 +30,18 @@ function renderButton(overrides: Partial<ComponentProps<typeof ConnectButton>> =
 
 const networkGroup = () => screen.getByRole('group', { name: 'Network' });
 
-/** The control itself, while it is live: the only button inside the group. */
-const picker = () => within(networkGroup()).getByRole('button');
+/** The control itself, while it is live. A combobox since sphere-ui 0.1.45. */
+const picker = () => within(networkGroup()).getByRole('combobox');
 
 /**
  * The rows of the open list.
  *
- * Scoped to the portal CustomSelect appends to `document.body` — while the list is open it is the
- * last child, after Testing Library's container. "Every button outside the group" would sweep in
- * "Connect Wallet", which sits right beside the picker, and call it a network.
+ * By role rather than by position. The rows used to be plain buttons portalled to
+ * `document.body`, so they had to be told apart from the page's other buttons — "Connect Wallet"
+ * sits right beside the picker and would otherwise have counted as a network. Since sphere-ui
+ * 0.1.45 they are options, and nothing else on this screen is one.
  */
-const listRows = () =>
-  within(document.body.lastElementChild as HTMLElement).queryAllByRole('button');
+const listRows = () => screen.queryAllByRole('option');
 
 describe('ConnectButton — network', () => {
   it('puts the network selector next to the Connect button', () => {
@@ -75,7 +75,7 @@ describe('ConnectButton — network', () => {
   it('locks the selector, and says so, while a connect attempt is in flight', () => {
     renderButton({ isConnecting: true });
 
-    expect(within(networkGroup()).queryByRole('button')).toBeNull();
+    expect(within(networkGroup()).queryByRole('combobox')).toBeNull();
     expect(within(networkGroup()).getByText('testnet2')).toBeTruthy();
     expect(screen.getByText(/connect attempt/i)).toBeTruthy();
   });

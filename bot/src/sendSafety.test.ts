@@ -20,9 +20,18 @@ const ALL_ERROR_CODES = [
   'NOT_INITIALIZED', 'ALREADY_INITIALIZED', 'INVALID_CONFIG', 'INVALID_IDENTITY',
   'INSUFFICIENT_BALANCE', 'INVALID_RECIPIENT', 'TRANSFER_FAILED', 'TRANSFER_CONFLICT',
   'CERTIFICATION_UNCONFIRMED', 'CHECKPOINT_PERSIST_FAILED', 'SPLIT_CHECKPOINT_LOST',
-  'CHECKPOINT_TRUSTBASE_MISMATCH', 'STORAGE_ERROR', 'SEND_SYNC_PENDING',
+  'CHECKPOINT_TRUSTBASE_MISMATCH',
+  // Added in 0.18.0 with per-type issuance policies: an arriving token of a policed type whose
+  // mint reason cannot be verified (Receive.ts treats it as unverifiable rather than invalid, so
+  // the holding is kept out of balances instead of refused). It is about what came IN, so it is
+  // not a send outcome at all, let alone a possibly-committed one.
+  'MINT_REASON_UNVERIFIABLE',
+  'STORAGE_ERROR', 'SEND_SYNC_PENDING',
   'SEND_PARTIALLY_COMPLETED', 'TRANSPORT_ERROR', 'AGGREGATOR_ERROR', 'VALIDATION_ERROR',
   'INVALID_AMOUNT', 'NETWORK_ERROR', 'TIMEOUT', 'DECRYPTION_ERROR', 'MODULE_NOT_AVAILABLE',
+  // Added in 0.17.3, with `walletApi: 'none'`: a payments call on a Sphere composed
+  // without the wallet-api vertical. A config mistake, never a possibly-committed send.
+  'PAYMENTS_NOT_COMPOSED',
   'SIGNING_ERROR', 'SEND_QUEUE_TIMEOUT', 'SEND_INSUFFICIENT_BALANCE',
   'SEND_RESERVATION_CANCELLED', 'SEND_QUEUE_FULL', 'MODULE_DESTROYED', 'REENTRANT_GATE',
   'RATE_LIMITED', 'COMMUNICATIONS_UNAVAILABLE',

@@ -13,19 +13,18 @@ vi.mock('@unicitylabs/sphere-sdk/connect', async (importOriginal) => {
 
 const group = () => screen.getByRole('group', { name: 'Network' });
 
-/** The control itself. It is the only button inside the group; the list is portalled elsewhere. */
-const trigger = () => within(group()).getByRole('button');
-
 /**
- * The rows of the open list.
+ * The control itself.
  *
- * Scoped to the portal, not to "every button outside the group": CustomSelect appends its
- * dropdown to `document.body` after Testing Library's own container, so while it is open it is
- * the last child — and a caller's other buttons (ConnectButton has one right beside the picker)
- * would otherwise be counted as rows.
+ * A combobox since sphere-ui 0.1.45, which rebuilt CustomSelect on the ARIA select-only combobox
+ * pattern. Queried by that role rather than by "the only button in the group", because the role
+ * is the contract — a trigger that stopped announcing itself as a combobox would be a regression
+ * this query should fail on.
  */
-const listRows = () =>
-  within(document.body.lastElementChild as HTMLElement).queryAllByRole('button');
+const trigger = () => within(group()).getByRole('combobox');
+
+/** The rows of the open list, which CustomSelect portals to `document.body`. */
+const listRows = () => screen.queryAllByRole('option');
 
 const openList = () => {
   fireEvent.click(trigger());
@@ -80,7 +79,7 @@ describe('NetworkPicker', () => {
       />,
     );
 
-    expect(within(group()).queryByRole('button')).toBeNull();
+    expect(within(group()).queryByRole('combobox')).toBeNull();
     expect(within(group()).getByText('testnet2')).toBeTruthy();
     expect(group().getAttribute('aria-describedby')).toBe(
       screen.getByText('Disconnect to switch network.').id,
@@ -93,7 +92,7 @@ describe('NetworkPicker', () => {
   it('reads out a network the registry does not contain, with no control to pick from', () => {
     render(<NetworkPicker value={{ id: 99 }} onChange={() => {}} />);
 
-    expect(within(group()).queryByRole('button')).toBeNull();
+    expect(within(group()).queryByRole('combobox')).toBeNull();
     expect(within(group()).getByText('network 99')).toBeTruthy();
   });
 

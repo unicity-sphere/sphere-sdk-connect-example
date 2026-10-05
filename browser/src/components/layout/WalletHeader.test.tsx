@@ -47,7 +47,7 @@ describe('WalletHeader', () => {
     render(<WalletHeader identity={identity} network={network} onDisconnect={() => {}} isWalletLocked={false} />);
 
     const group = screen.getByRole('group', { name: 'Network' });
-    expect(within(group).queryByRole('button')).toBeNull();
+    expect(within(group).queryByRole('combobox')).toBeNull();
     expect(screen.getByText(/disconnect to switch/i)).toBeTruthy();
   });
 });

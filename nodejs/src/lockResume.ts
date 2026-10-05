@@ -58,6 +58,26 @@ export function describeConnectFailure(err: unknown): string {
   }
 
   const data = errorData(err);
+
+  // 4201: the wallet TOOK the intent and the answer was lost. Never a retry prompt. The host may
+  // have managed to attach what it already knew — for mint_nft that is the `tokenId` it was
+  // about to return, which is exactly what makes the reconciliation a one-line lookup.
+  if (code === ERROR_CODES.INTENT_OUTCOME_UNKNOWN) {
+    const tokenId = text(data?.tokenId);
+    const lead =
+      'Outcome UNKNOWN (4201) — the wallet accepted the intent and the answer was lost. ' +
+      'It may have completed. Do NOT retry.';
+    return tokenId
+      ? `${lead} The wallet reported tokenId ${tokenId}; look it up before doing anything else.`
+      : `${lead} Reconcile out of band (the wallet's token list, the recipient, your backend) first.`;
+  }
+
+  // -32601 from an intent means this wallet does not implement that action — the Sphere wallet
+  // answers `send_nft` this way today. It is a capability gap, not a failure to retry.
+  if (code === ERROR_CODES.METHOD_NOT_FOUND) {
+    return `${message} — this wallet does not implement that action. Nothing happened; do not retry.`;
+  }
+
   if (data) {
     if (code === ERROR_CODES.INCOMPATIBLE_NETWORK) {
       const client = networkName(data.clientNetwork);

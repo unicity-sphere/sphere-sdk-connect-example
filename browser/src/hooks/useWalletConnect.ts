@@ -94,6 +94,11 @@ const WALLET_URL = import.meta.env.VITE_WALLET_URL || 'https://sphere.unicity.ne
  * (INCOMPATIBLE_NETWORK, 4008), and a bundle that can only ever mean one chain is how a build
  * ships pointed at the wrong one. Read once at load, like the wallet URL above; the user's stored
  * pick, when there is one, wins over it.
+ *
+ * This supersedes main's `targetNetwork()`, which read the same variable with the same fallback
+ * and the same warning. The difference is what sits on top: the env value is now only a DEFAULT,
+ * and the user can choose per session. Keeping both would have left two readers of one variable
+ * disagreeing about which one the handshake actually declares.
  */
 const DEFAULT_NETWORK: NetworkInfo = envNetwork(import.meta.env.VITE_SPHERE_NETWORK);
 
@@ -204,6 +209,8 @@ export function useWalletConnect(): UseWalletConnect {
   const attemptInFlightRef = useRef(false);
 
   const makeClient = useCallback(
+    // The network is a PARAMETER, not a module constant: it is read once per handshake from the
+    // user's pick, so a session stays bound to what it declared even if the pick changes later.
     (
       transport: ConnectTransport,
       declared: NetworkInfo,
