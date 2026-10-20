@@ -4,6 +4,7 @@ import { Button, Input, Textarea } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
 import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
+import { asRecipient } from '../../lib/recipient';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -25,7 +26,7 @@ export function DMPanel({ intent }: Props) {
     setFailure(null);
     setRaw(null);
     try {
-      const to = recipient.startsWith('@') ? recipient : '@' + recipient;
+      const to = asRecipient(recipient);
       const result = await intent(INTENT_ACTIONS.DM, { to, message });
       setRaw(result);
     } catch (err) {
@@ -47,7 +48,7 @@ export function DMPanel({ intent }: Props) {
 
       <div className="space-y-3">
         <Input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
-          placeholder="To (@nametag)" />
+          placeholder="To (@nametag or pubkey)" />
         <Textarea value={message} onChange={(e) => setMessage(e.target.value)}
           placeholder="Message" rows={3} className="resize-none" />
         <Button onClick={execute} disabled={loading || unresolved || !recipient || !message} className="w-full">

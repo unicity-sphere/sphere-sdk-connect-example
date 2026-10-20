@@ -5,6 +5,7 @@ import { chatTime, truncate } from '../../lib/format';
 import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
 import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
 import type { ConversationSummary, ConversationPage, DirectMessage } from '../../lib/types';
+import { asRecipient } from '../../lib/recipient';
 
 interface Props {
   query: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
@@ -158,7 +159,7 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
       ? (peerNametag.startsWith('@') ? peerNametag : '@' + peerNametag)
       : selectedPeer
         ? selectedPeer  // raw pubkey — send without @
-        : newChatRecipient.startsWith('@') ? newChatRecipient : '@' + newChatRecipient;
+        : asRecipient(newChatRecipient);
     if (!to) return;
 
     // Captured, not read from state in the catch: the user may have switched threads while the
@@ -252,7 +253,7 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
                   setMessages([]);
                 }
               }}
-              placeholder="New chat (@nametag)"
+              placeholder="New chat (@nametag or pubkey)"
               className="w-full px-2 py-1.5 text-xs rounded-lg bg-white/3 border border-white/8 text-white placeholder-white/30 focus:outline-none focus:border-orange-500"
             />
           </div>
@@ -303,7 +304,7 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
               <span className="text-sm font-semibold text-white">{peerDisplay}</span>
             ) : newChatRecipient ? (
               <span className="text-sm font-semibold text-white">
-                New chat with {newChatRecipient.startsWith('@') ? newChatRecipient : '@' + newChatRecipient}
+                New chat with {asRecipient(newChatRecipient)}
               </span>
             ) : (
               <span className="text-sm text-white/45">Select a conversation or start a new chat</span>
