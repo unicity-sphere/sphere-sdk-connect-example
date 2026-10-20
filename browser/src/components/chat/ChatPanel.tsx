@@ -5,7 +5,7 @@ import { chatTime, truncate } from '../../lib/format';
 import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
 import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
 import type { ConversationSummary, ConversationPage, DirectMessage } from '../../lib/types';
-import { asRecipient } from '../../lib/recipient';
+import { asRecipient, chatThreadKey } from '../../lib/recipient';
 
 interface Props {
   query: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
@@ -132,8 +132,8 @@ export function ChatPanel({ query, intent, on, walletPubkey, isWalletLocked, unl
     } catch {}
   };
 
-  /** The thread the composer is aimed at: a selected peer's pubkey, or the typed new-chat handle. */
-  const activeThread = selectedPeer ?? (newChatRecipient.trim() ? `@${newChatRecipient.trim().replace(/^@/, '')}` : null);
+  /** The thread the composer is aimed at: a selected peer's pubkey, or the typed new-chat recipient. */
+  const activeThread = selectedPeer ?? (newChatRecipient.trim() ? chatThreadKey(newChatRecipient) : null);
   const sendFailure = activeThread ? unresolvedSends[activeThread] ?? null : null;
   // A dm whose outcome is unknown LOCKS the composer for THAT thread — the peer may already have
   // the message, and the draft is still in the box, so one Enter would send it twice.

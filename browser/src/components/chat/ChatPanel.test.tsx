@@ -40,11 +40,11 @@ function conversation(peerPubkey: string, peerNametag: string): ConversationSumm
 }
 
 /** `intent()` rejects the FIRST dm with 4201 and resolves every later one. */
-function renderPanel() {
+function renderPanel(conversations = [conversation(ALICE, 'alice'), conversation(BOB, 'bob')]) {
   const sent: Record<string, unknown>[] = [];
   const query = async <T,>(method: string): Promise<T> => {
     if (method === RPC_METHODS.GET_CONVERSATIONS) {
-      return [conversation(ALICE, 'alice'), conversation(BOB, 'bob')] as T;
+      return conversations as T;
     }
     return { messages: [], hasMore: false, oldestTimestamp: null } as T;
   };
@@ -106,6 +106,26 @@ describe('ChatPanel 4201 lock', () => {
     await waitFor(() => expect(screen.queryByText(/Outcome unknown/)).toBeNull());
 
     await openThread('alice');
+    await waitFor(() => expect(screen.getByText(/Outcome unknown/)).toBeTruthy());
+    await type('again');
+    await waitFor(() => expect(sendButton().disabled).toBe(true));
+    expect(sent).toHaveLength(1);
+  });
+
+  it('keeps the lock on a chat started from a typed pubkey when that peer is opened from the list', async () => {
+    // The wallet lists a conversation under its peer's x-only key in lower case; the user typed
+    // the same peer's chain key, in upper case.
+    const carol = 'c'.repeat(64);
+    const typed = `02${'C'.repeat(64)}`;
+    const { sent } = renderPanel([conversation(carol, 'carol')]);
+
+    fireEvent.change(screen.getByPlaceholderText('New chat (@nametag or pubkey)'), { target: { value: typed } });
+    await type('for carol');
+    fireEvent.click(sendButton());
+    await waitFor(() => expect(sendButton().disabled).toBe(true));
+    expect(sent[0]?.to).toBe(typed);
+
+    await openThread('carol');
     await waitFor(() => expect(screen.getByText(/Outcome unknown/)).toBeTruthy());
     await type('again');
     await waitFor(() => expect(sendButton().disabled).toBe(true));
