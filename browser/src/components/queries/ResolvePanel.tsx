@@ -3,6 +3,7 @@ import { RPC_METHODS } from '@unicitylabs/sphere-sdk/connect';
 import { Button, Input } from '@unicitylabs/sphere-ui';
 import { ResultDisplay } from '../ui/ResultDisplay';
 import type { PeerInfo } from '../../lib/types';
+import { asRecipient } from '../../lib/recipient';
 
 interface Props {
   query: <T>(method: string, params?: Record<string, unknown>) => Promise<T>;
@@ -21,7 +22,7 @@ export function ResolvePanel({ query }: Props) {
     setError(null);
     setPeer(null);
     try {
-      const id = identifier.startsWith('@') ? identifier : '@' + identifier;
+      const id = asRecipient(identifier);
       const result = await query<PeerInfo>(RPC_METHODS.RESOLVE, { identifier: id });
       setPeer(result);
       setRaw(result);
@@ -42,7 +43,7 @@ export function ResolvePanel({ query }: Props) {
 
       <div className="flex gap-2 mb-3">
         <Input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)}
-          placeholder="@nametag, DIRECT://..., pubkey"
+          placeholder="@nametag or pubkey"
           className="flex-1"
           onKeyDown={(e) => e.key === 'Enter' && execute()} />
         <Button onClick={execute} disabled={loading || !identifier}>

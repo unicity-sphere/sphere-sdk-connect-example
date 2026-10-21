@@ -7,6 +7,7 @@ import { parseAmount, safeParseAmount } from '../../lib/format';
 import { interpretSendResult, SIMULATED_PENDING_RESULT, type SendOutcome } from '../../lib/sendResult';
 import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
 import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
+import { asRecipient } from '../../lib/recipient';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -36,7 +37,7 @@ export function SendPanel({ intent, query }: Props) {
     setRaw(null);
     setOutcome(null);
     try {
-      const to = recipient.startsWith('@') ? recipient : '@' + recipient;
+      const to = asRecipient(recipient);
       // Connect `send` takes the amount in BASE UNITS — convert the human input
       // here, at the dApp's edge (string-based, exact). The wallet only displays
       // it. (The SDK also exports `parseTokenAmount` for the same purpose.)
@@ -70,7 +71,7 @@ export function SendPanel({ intent, query }: Props) {
 
       <div className="space-y-3">
         <Input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
-          placeholder="Recipient (@nametag, DIRECT://..., pubkey)" />
+          placeholder="Recipient (@nametag or pubkey)" />
         <div className="flex gap-2">
           <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount"

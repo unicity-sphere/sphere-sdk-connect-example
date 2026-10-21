@@ -6,6 +6,7 @@ import { CoinSelect } from '../ui/CoinSelect';
 import { parseAmount, safeParseAmount } from '../../lib/format';
 import { errorText, isUnresolved, toIntentFailure, type IntentFailure } from '../../lib/intentFailure';
 import { OutcomeUnknownBanner } from '../ui/OutcomeUnknownBanner';
+import { asRecipient } from '../../lib/recipient';
 
 interface Props {
   intent: <T>(action: string, params: Record<string, unknown>) => Promise<T>;
@@ -31,7 +32,7 @@ export function PaymentRequestPanel({ intent, query }: Props) {
     setFailure(null);
     setRaw(null);
     try {
-      const to = recipient.startsWith('@') ? recipient : '@' + recipient;
+      const to = asRecipient(recipient);
       // Connect `payment_request` takes the amount in BASE UNITS — convert the
       // human input here, at the dApp's edge (string-based, exact).
       const params: Record<string, unknown> = { to, amount: parseAmount(amount, decimals), coinId };
@@ -57,7 +58,7 @@ export function PaymentRequestPanel({ intent, query }: Props) {
 
       <div className="space-y-3">
         <Input type="text" value={recipient} onChange={(e) => setRecipient(e.target.value)}
-          placeholder="Recipient (@nametag)" />
+          placeholder="Recipient (@nametag or pubkey)" />
         <div className="flex gap-2">
           <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)}
             placeholder="Amount"

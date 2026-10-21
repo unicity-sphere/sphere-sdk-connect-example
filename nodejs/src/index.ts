@@ -16,6 +16,7 @@ import type {
 } from '@unicitylabs/sphere-sdk/connect';
 import { WebSocketTransport } from '@unicitylabs/sphere-sdk/connect/nodejs';
 import { describeConnectFailure, isSameWallet } from './lockResume';
+import { asRecipient } from './recipient';
 import WebSocket from 'ws';
 import readline from 'readline';
 
@@ -175,11 +176,11 @@ async function main() {
           case 'resolve': {
             const identifier = parts[1];
             if (!identifier) {
-              console.log('Usage: resolve @nametag');
+              console.log('Usage: resolve <@nametag|pubkey>');
               break;
             }
             const peer = await runQuery(RPC_METHODS.RESOLVE, {
-              identifier: identifier.startsWith('@') ? identifier : '@' + identifier,
+              identifier: asRecipient(identifier),
             });
             console.log('Resolved:', JSON.stringify(peer, null, 2));
             break;
@@ -189,11 +190,11 @@ async function main() {
             const amount = parts[2];
             const coinId = parts[3];
             if (!to || !amount || !coinId) {
-              console.log('Usage: send @nametag <amount-base-units> <coinId-hex>');
+              console.log('Usage: send <@nametag|pubkey> <amount-base-units> <coinId-hex>');
               break;
             }
             const sendResult = await client.intent(INTENT_ACTIONS.SEND, {
-              to: to.startsWith('@') ? to : '@' + to,
+              to: asRecipient(to),
               amount,
               coinId,
             });
@@ -249,11 +250,11 @@ async function main() {
             const nftTo = parts[1];
             const nftTokenId = parts[2];
             if (!nftTo || !nftTokenId) {
-              console.log('Usage: sendnft @nametag <tokenId-hex>   (expect -32601 — no wallet implements it yet)');
+              console.log('Usage: sendnft <@nametag|pubkey> <tokenId-hex>   (expect -32601 — no wallet implements it yet)');
               break;
             }
             const sendNftResult = await client.intent(INTENT_ACTIONS.SEND_NFT, {
-              to: nftTo.startsWith('@') ? nftTo : '@' + nftTo,
+              to: asRecipient(nftTo),
               tokenId: nftTokenId,
             });
             console.log('Send NFT result:', JSON.stringify(sendNftResult, null, 2));
@@ -263,11 +264,11 @@ async function main() {
             const dmTo = parts[1];
             const message = parts.slice(2).join(' ');
             if (!dmTo || !message) {
-              console.log('Usage: dm @nametag message text');
+              console.log('Usage: dm <@nametag|pubkey> message text');
               break;
             }
             const dmResult = await client.intent(INTENT_ACTIONS.DM, {
-              to: dmTo.startsWith('@') ? dmTo : '@' + dmTo,
+              to: asRecipient(dmTo),
               message,
             });
             console.log('DM result:', JSON.stringify(dmResult, null, 2));
@@ -279,11 +280,11 @@ async function main() {
             const payCoin = parts[3];
             const payMsg = parts.slice(4).join(' ') || undefined;
             if (!payTo || !payAmount || !payCoin) {
-              console.log('Usage: pay @nametag <amount-base-units> <coinId-hex> [message]');
+              console.log('Usage: pay <@nametag|pubkey> <amount-base-units> <coinId-hex> [message]');
               break;
             }
             const payResult = await client.intent(INTENT_ACTIONS.PAYMENT_REQUEST, {
-              to: payTo.startsWith('@') ? payTo : '@' + payTo,
+              to: asRecipient(payTo),
               amount: payAmount,
               coinId: payCoin,
               ...(payMsg ? { message: payMsg } : {}),
@@ -364,16 +365,17 @@ Commands:
     fiat               - Get total fiat balance
     tokens             - Get individual token list
     history            - Get transaction history
-    resolve @tag       - Resolve nametag/address to peer info
+    resolve <to>       - Resolve a nametag or pubkey to peer info
 
   INTENTS (require wallet approval)
-    send @to <amount> <coinId>       - Send L3 tokens (amount in smallest units, coinId lowercase hex)
+    <to> is an @nametag (the @ is added when missing) or a pubkey (66- or 64-hex), never prefixed
+    send <to> <amount> <coinId>      - Send L3 tokens (amount in smallest units, coinId lowercase hex)
     mint <coinId> <amount>           - Self-mint a fungible token (coinId = lowercase hex)
     mintnft [name]                   - Mint an NFT (Connect 2.3, scope nft:mint); prints the tokenId
-    sendnft @to <tokenId>            - Move an NFT (Connect 2.2) — DECLARED but not implemented
+    sendnft <to> <tokenId>           - Move an NFT (Connect 2.2) — DECLARED but not implemented
                                        by any wallet: expect -32601
-    dm @to message                   - Send direct message
-    pay @to <amount> <coinId> [msg]  - Send payment request (amount in smallest units, coinId lowercase hex)
+    dm <to> message                  - Send direct message
+    pay <to> <amount> <coinId> [msg] - Send payment request (amount in smallest units, coinId lowercase hex)
     receive                          - Receive incoming tokens
     sign message text                - Sign a message
 
